@@ -18,6 +18,25 @@ player needs a conversion layer that did not exist anywhere.
 AKM is Arkos's smallest format and its documented successor to Lightweight;
 until now it was Z80 only.
 
+## Listen to it
+
+Both demo discs run in the browser, on a stock Model B — no second processor,
+no sideways RAM, nothing but a BBC Micro and its sound chip:
+
+- **[AKM — Targhan, *Crtc*](https://bbc.xania.org/?disc=https://bitshifters.github.io/content/wip/arkos-akm-wip.ssd&autoboot&model=B)**
+- **[AKY — Rhino, *Acid Demo*](https://bbc.xania.org/?disc=https://bitshifters.github.io/content/wip/arkos-aky-wip.ssd&autoboot&model=B)**
+
+**SPACE** mutes, **B** cycles the bass through periodic noise, the software
+voice and none at all, **ESCAPE** quits. The red band is the music: what you
+are looking at is the cost of the frame you are listening to.
+
+*Crtc* is the tune to judge the AKM player by, and it was picked by
+measurement rather than taste — of the 75 songs `tools/survey_akm.py` sweeps
+it reaches 21 of the player's 26 code paths, more than any other. It also
+leans hard on notes below the SN76489's 122 Hz floor, so **B** is worth
+pressing: that is the whole argument of [`docs/ay-to-sn.md`](docs/ay-to-sn.md)
+in a form you can hear.
+
 ## What is here
 
 ```
@@ -25,7 +44,7 @@ lib/ay2sn.asm       the spine: ay_regs -> SN76489            (BBC-specific)
 lib/aklplayer.asm   AKL replay, hardware-free                (ours)
 lib/akmplayer.asm   AKM replay, hardware-free                (ours; the only one)
 lib/akyplayer.asm   AKY replay, hardware-free                (ported, MIT)
-example/            the demo, and four discs built from it
+example/            the demo, and five discs built from it
 tools/              exporters, the verification harness, a WAV renderer
 reference/          Arkos's own sources, vendored unmodified
 ```
@@ -103,10 +122,15 @@ one-voice bass shows its limit. Both play through `lib/aklplayer.asm`.
 `--song` with `--disc` builds any other song the same way without
 overwriting a demo.
 
-The **AKM** disc plays Targhan's *Crtc*, and that tune was picked by
-measurement rather than taste: of the 75 songs `tools/survey_akm.py` sweeps,
-it reaches 21 of the player's 26 paths - including the pitch table and two of
-the force-speed effects, three paths AKL has still never executed.
+The **AKM** disc plays Targhan's *Crtc* - see [Listen to it](#listen-to-it) -
+and that tune was picked by measurement rather than taste: of the 75 songs
+`tools/survey_akm.py` sweeps, it reaches 21 of the player's 26 paths,
+including the pitch table and two of the force-speed effects, three paths AKL
+has still never executed.
+
+The AKM and AKY discs are published as WIP builds and are the two links at the
+top; `tools/verify/find_capture.py` is how a disc is proved to write what the
+simulation says it should.
 
 All five **default to the periodic-noise bass** (`bass_mode 2`), because it
 is the one a host can have without giving up a timer or taking on

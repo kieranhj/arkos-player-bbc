@@ -40,6 +40,20 @@ DEFAULTS = {
             'Rhino - Acid Demo'),
 }
 
+# Two more AKL discs, built with --extra, both of them test cases rather than
+# demos. EDGEA is the tune the library was built for and the only one here
+# that uses the hardware envelope; Orion Prime Level 4 is the hardest bass of
+# the 75 surveyed - 69% of its audible channel-frames are below the chip's
+# floor and 54% of its bass calls want two voices at once.
+EXTRA = {
+    'edgea': (os.path.join(BEEB, 'Repos', 'edge-beeb', 'source_cpc', 'Music',
+                           'EDGEA.SKS'),
+              'Tom&Jerry - Edge Grinder'),
+    'orion': (os.path.join(AT3, 'songs', 'STarKos',
+                           'Targhan - Orion Prime - Level 4 - Theme 1.sks'),
+              'Targhan - Orion Prime L4'),
+}
+
 
 def beebasm():
     for c in (os.path.join(ROOT, 'bin', 'beebasm.exe'),
@@ -68,7 +82,7 @@ def aky_psgs(path):
     return (open(path, 'rb').read()[1] + 2) // 3
 
 
-def build(player, song, title):
+def build(player, song, title, disc=None):
     os.makedirs(BUILD, exist_ok=True)
     binary = os.path.join(BUILD, 'song.bin')
     export(song, player, binary)
@@ -101,7 +115,8 @@ def build(player, song, title):
     with open(os.path.join(BUILD, 'boot.txt'), 'w') as f:
         f.write('*BASIC\r*RUN %s\r' % name)
 
-    ssd = os.path.join(ROOT, 'build', 'ARKOS-%s.SSD' % player.upper())
+    ssd = os.path.join(ROOT, 'build',
+                       'ARKOS-%s.SSD' % (disc or player).upper())
     os.makedirs(os.path.dirname(ssd), exist_ok=True)
     r = subprocess.run([beebasm(), '-i', 'example/demo.asm', '-do', ssd,
                         '-boot', name, '-title', 'ARKOS', '-opt', '3'],
@@ -118,7 +133,21 @@ def main():
     ap.add_argument('--player', choices=('akl', 'aky'))
     ap.add_argument('--song')
     ap.add_argument('--title', default=None)
+    ap.add_argument('--disc', default=None,
+                    help='name the image build/ARKOS-<DISC>.SSD instead of '
+                         'ARKOS-<PLAYER>.SSD, so a one-off song disc does not '
+                         'overwrite the demo')
+    ap.add_argument('--extra', action='store_true',
+                    help='also build the two extra AKL discs, EDGEA and ORION')
     args = ap.parse_args()
+
+    if args.extra:
+        for disc, (song, title) in EXTRA.items():
+            if not os.path.exists(song):
+                print('skipping %s: %s not found' % (disc, song))
+                continue
+            build('akl', song, title, disc)
+        return
 
     players = [args.player] if args.player else ['akl', 'aky']
     for p in players:
@@ -129,7 +158,7 @@ def main():
         if not os.path.exists(song):
             print('skipping %s: %s not found' % (p, song))
             continue
-        build(p, song, title)
+        build(p, song, title, args.disc)
 
 
 if __name__ == '__main__':

@@ -20,7 +20,7 @@ player needs a conversion layer that did not exist anywhere.
 lib/ay2sn.asm       the spine: ay_regs -> SN76489            (BBC-specific)
 lib/aklplayer.asm   AKL replay, hardware-free                (ours)
 lib/akyplayer.asm   AKY replay, hardware-free                (ported, MIT)
-example/            two demo discs, one per player
+example/            the demo, and four discs built from it
 tools/              exporters, the verification harness, a WAV renderer
 reference/          Arkos's own sources, vendored unmodified
 ```
@@ -82,9 +82,24 @@ Build the demo discs:
 
 ```
 python example/build.py                 # build/ARKOS-AKL.SSD, ARKOS-AKY.SSD
+python example/build.py --extra         # build/ARKOS-EDGEA.SSD, ARKOS-ORION.SSD
 python tools/verify/verify.py --player akl   # prove the player still works
 python tools/make_tables.py --check          # prove the tables still match
 ```
+
+Four discs, and the last two are test cases rather than demos. **EDGEA** is
+the tune the library was built for and the only one here that uses the
+hardware envelope. **Orion Prime Level 4** is the hardest bass of the 75
+songs surveyed: 69% of its audible channel-frames are below the chip's
+floor and 54% of its bass calls want two voices at once, so it is where a
+one-voice bass shows its limit. Both play through `lib/aklplayer.asm`.
+`--song` with `--disc` builds any other song the same way without
+overwriting a demo.
+
+All four **default to the periodic-noise bass** (`bass_mode 2`), because it
+is the one a host can have without giving up a timer or taking on
+interrupts. B cycles to the software voice and to no bass at all, which is
+the comparison worth making by ear.
 
 Needs [beebasm](https://github.com/stardot/beebasm), `pip install py65 numpy`,
 and an Arkos Tracker install to export songs and to be the oracle.

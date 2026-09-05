@@ -117,9 +117,12 @@ GUARD SONG
     sta mute_latch
     lda #REPLAY_DIV
     sta field_count
-    lda #1                          \ hand the low notes to the software
-    sta bass_mode                   \ bass instead of shifting them up
-    jsr show_bass
+    lda #2                          \ hand the low notes to the periodic
+    sta bass_mode                   \ noise instead of shifting them up
+    jsr show_bass                   \ - the default because it needs no
+                                    \ timer and no interrupt, so it is what
+                                    \ most hosts can actually afford. B
+                                    \ cycles to the software voice and off.
 
 IF PLAYER_AKY
     \ The base of the exported data: aky_init reads the AKY header

@@ -21,6 +21,15 @@ CPU 0
 
 OSWRCH   = &FFEE
 OSBYTE   = &FFF4
+
+\ NEGATIVE INKEY numbers, measured in jsbeeb 2026-09-05 by holding the
+\ key and scanning INKEY(-1) to INKEY(-128). They are NOT the internal
+\ key numbers an OSBYTE 121 scan or a VIA matrix read uses - they are
+\ one MORE. SPACE is internal 98 and negative INKEY 99; ESCAPE is
+\ internal 112 and negative INKEY 113. Using the internal number here
+\ reads the neighbouring key and the key appears dead.
+KEY_SPACE  = 99
+KEY_ESCAPE = 113
 IRQ1V    = &0204
 \ VDU 13 is a CARRIAGE RETURN and nothing more. Without a line feed
 \ beside it, every line of the banner overwrites the one before.
@@ -68,6 +77,14 @@ GUARD SONG
                                     \ song at &3000. MODE 1's starts AT
                                     \ &3000 and quietly erased it.
 
+    ldx #0                          \ VDU 23,1,0,0,0,0,0,0,0,0 - cursor off.
+.curs                               \ Its own loop because the banner's is
+    lda cursor_off,x                \ zero-terminated and this is mostly
+    jsr OSWRCH                      \ zeroes.
+    inx
+    cpx #10
+    bne curs
+
     ldx #0
 .print
     lda banner,x
@@ -76,6 +93,10 @@ GUARD SONG
     inx
     bne print
 .printed
+
+    lda #229 : ldx #1 : ldy #0      \ *FX229,1 - ESCAPE becomes an ordinary
+    jsr OSBYTE                      \ key instead of an escape condition,
+                                    \ which is the only way to poll it
 
     lda #0
     sta muted
@@ -94,8 +115,8 @@ ENDIF
     jsr install_irq
 
 .loop
-    lda #&81                        \ SPACE down? (internal key 98)
-    ldx #(256 - 98) : ldy #&FF
+    lda #&81                        \ SPACE down?
+    ldx #(256 - KEY_SPACE) : ldy #&FF
     jsr OSBYTE
     cpx #&FF
     bne space_up
@@ -108,14 +129,22 @@ ENDIF
     lda #0 : sta mute_latch
 
 .check_esc
-    lda #&81                        \ ESCAPE down? (internal key 112)
-    ldx #(256 - 112) : ldy #&FF
+    lda #&81                        \ ESCAPE down?
+    ldx #(256 - KEY_ESCAPE) : ldy #&FF
     jsr OSBYTE
     cpx #&FF
     bne loop
 
     jsr remove_irq
     jsr silence
+.wait_release                       \ hand ESCAPE back only once it is up,
+    lda #&81                        \ or the MOS raises the escape condition
+    ldx #(256 - KEY_ESCAPE) : ldy #&FF
+    jsr OSBYTE
+    cpx #&FF
+    beq wait_release
+    lda #229 : ldx #0 : ldy #0      \ give ESCAPE back to the MOS
+    jsr OSBYTE
     lda #22 : jsr OSWRCH
     lda #7  : jsr OSWRCH
     rts
@@ -208,38 +237,43 @@ ENDIF
 \ 1 bpp mode spreads each logical colour over EIGHT of them: 0-7 are
 \ logical 0 and 8-15 are logical 1 (measured in jsbeeb, 2026-09-05 -
 \ writing entry 0 alone bands part of every character cell, and the
-\ even entries are not the set either). So eight writes, and the text
-\ in logical 1 is left alone. A 4-colour mode needs four writes per
-\ colour and a 16-colour mode one.
+\ even entries are not the set either). A 4-colour mode needs four
+\ writes per colour and a 16-colour mode one.
+\ Unrolled, and the logical number walks 0,1,3,2,6,7,5,4 - GRAY CODE,
+\ so consecutive entries differ in exactly one bit and each step is a
+\ single EOR. All eight of 0-7 get written, order does not matter, and
+\ it costs 46 cycles instead of the loop's ~200.
 .band
 {
-    sta band_col
-    ldx #7
-.next
-    txa
-    asl a : asl a : asl a : asl a
-    ora band_col
-    sta &FE21
-    dex
-    bpl next
+    sta &FE21                       \ logical 0
+    eor #&10 : sta &FE21            \ 1
+    eor #&20 : sta &FE21            \ 3
+    eor #&10 : sta &FE21            \ 2
+    eor #&40 : sta &FE21            \ 6
+    eor #&10 : sta &FE21            \ 7
+    eor #&20 : sta &FE21            \ 5
+    eor #&10 : sta &FE21            \ 4
     rts
 }
-.band_col skip 1
 
 \ silence: the four volume-off writes. It lives in ay2sn.asm and is not
 \ AKL-specific, despite the name it arrived with.
 .silence
     jmp akl_silence
 
+.cursor_off
+    EQUB 23, 1, 0, 0, 0, 0, 0, 0, 0, 0
+
 .banner
 IF PLAYER_AKY
-    EQUS 13, 10, 13, 10, "  Arkos Tracker AKY replay for the BBC Micro", 13, 10
+    EQUS 13, 10, 13, 10, "Arkos Tracker AKY replay", 13, 10
 ELSE
-    EQUS 13, 10, 13, 10, "  Arkos Tracker AKL replay for the BBC Micro", 13, 10
+    EQUS 13, 10, 13, 10, "Arkos Tracker AKL replay", 13, 10
 ENDIF
-    EQUS 13, 10, "  ", SONG_TITLE, 13, 10
-    EQUS 13, 10, "  The red band is the music.", 13, 10
-    EQUS "  SPACE mutes.  ESCAPE quits.", 13, 10
+    EQUS "for the BBC Micro", 13, 10
+    EQUS 13, 10, SONG_TITLE, 13, 10
+    EQUS 13, 10, "The red band is the music.", 13, 10
+    EQUS "SPACE mutes.  ESCAPE quits.", 13, 10
     EQUB 0
 
 \ ---- the library ---------------------------------------------------

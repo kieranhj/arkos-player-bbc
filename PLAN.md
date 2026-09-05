@@ -1,6 +1,30 @@
 # arkos-player-bbc — the plan
 
-**Status: planned, not started. 2026-09-05.** Nothing exists in this repo yet but this file.
+**Status: steps 1-6 done, 2026-09-05.** Both players work and are verified against Arkos's own
+player; both demo discs build and run in jsbeeb. The README carries the results. What is left:
+
+- **Step 7, the fidelity work**: not started. Noise rate 3 and averaging the envelope, both in
+  `lib/ay2sn.asm`, both benefiting either player. `docs/ay-to-sn.md`.
+- **AKM**: not started, and now the clearest next move. `docs/porting.md` has the route.
+- **edge-beeb**: not yet updated to take `lib/` as a verbatim copy (decision 4).
+- **Targhan**: not yet contacted — to thank him, to confirm the demo-tune choice, and to report
+  the AT2 AKL exporter fault and the AT2/AT3 replay difference.
+
+### What the work changed about the plan below
+
+- **The demo tunes.** The plan said one Targhan song. It is now one per player: Targhan's *Dead On
+  Time* on the AKL disc, and **Rhino's Acid Demo 07** — KC has the author's permission — on the AKY
+  disc. `Acid_demo_21`, the version KC named, turns out to be a **two-PSG, six-channel** song, and
+  no single-chip player can play it; `_07` is an earlier single-PSG iteration of the same piece.
+  See `songs/README.md`.
+- **The AKL disc could not use Rhino's tune anyway.** AT2's exporter produces unplayable AKL for
+  it — `docs/format-akl.md`. That is why the two discs do not share a song.
+- **`make_tables.py` grew.** The plan named one missing generator; there were two files and five
+  tables, and recovering the envelope-step derivation (5,120,000 / period, wrapped to 16 bits) took
+  longer than anything else in that step.
+- **AKY needed a header parser.** The AKY binary opens with a header whose length depends on the
+  PSG count, and the player wants the linker that follows it. Getting it wrong does not fail — it
+  plays silence, convincingly.
 
 Arkos Tracker replays for the BBC Micro, with the AY-3-8912 → SN76489 layer they need in order to
 play on a machine the format was never meant for. Extracted from the Edge Grinder port

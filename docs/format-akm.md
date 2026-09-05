@@ -104,24 +104,73 @@ repo already says which oracle a number came from.
 
 ## What is verified so far
 
-`tools/verify/akm_reference.py` against `SongToYm.exe`, 2026-09-05, over
-every CPC-clock song in the corpus (11 Atari ST and MSX songs excluded: they
-run their PSG at 2 MHz and 1.789 MHz and this player targets the CPC's 1 MHz
-path deliberately, so the period table is knowingly wrong for them):
+Two oracles, and neither is this project.
+
+### 1. Arkos's own annotation of the data
+
+`SongToAkm.exe` without `-bin` writes the same song as assembler source with a
+comment on **every byte** saying what it means:
+
+```
+db 126    ; New instrument (2). New escaped note: 76. Primary wait (0).
+db 76     ;   Escape note value.
+db 2      ;   Escape instrument value.
+```
+
+`tools/verify/akm_source_check.py` assembles that source, **proves it is byte
+for byte the same as the binary export** (and refuses to report anything if it
+is not), then replays the binary in `akm_reference.py` with its decode log on
+and holds every decision against the comment at that address.
+
+This is a much sharper instrument than a register log for the decode layers. A
+register log only shows a fault once it has changed an audible register, by
+which time the cause is hundreds of frames back; this shows it on the cell.
 
 | | |
 |---|--:|
-| CPC-clock songs tested | 64 |
-| verify clean, or differ only by the six-note +1 | **42** |
-| differ in ways not yet explained | 22 |
+| songs | 74 |
+| cells, effects, instrument volumes and linker entries checked | **46,236** |
+| disagreements | **0** |
 
-Two of the clean ones are worth naming because of their length: **Targhan's
-*Dead On Time*, 3,726 frames, and *Orion Prime L4*, 24,192 frames — the only
-difference from Arkos's own player on either is the +1 above. Nothing else
-differs at all.**
+That covers the note (reference, new escape, same escape), the instrument
+(primary, secondary, new escape, same escape), the wait, all eight effects and
+their data, every instrument cell's volume, and - the layer a cell check
+cannot see, because a wrong track pointer still reads perfectly valid cells -
+**the linker's per-channel track pointers, pattern heights and speed
+changes**.
 
-The 22 that do not verify are concentrated in native `.aks` songs rather than
-`.sks` ones:
+**So the format is understood.** That is what step 1 exists to establish.
+
+### 2. `SongToYm.exe`, Arkos's own replay
+
+Over every CPC-clock song in the corpus (11 Atari ST and MSX songs excluded:
+they run their PSG at 2 MHz and 1.789 MHz and this player targets the CPC's
+1 MHz path deliberately, so the period table is knowingly wrong for them):
+
+| | |
+|---|--:|
+| CPC-clock songs | 64 |
+| with no register difference outside the explained classes below | **39** |
+| with differences still unexplained | 25 |
+
+Two of the clean ones are worth naming for their length: **Targhan's *Dead On
+Time*, 3,726 frames, and *Orion Prime L4*, 24,192 frames - the only difference
+from Arkos's own player on either is the +1 above. Nothing else differs at
+all.**
+
+### The explained classes
+
+| class | why it is not a defect |
+|---|---|
+| period +1 on six notes | AKM's octave halving against Arkos's true table, above. Inherent to the AKM player. |
+| volume differing by exactly 1 | Arkos's own documented ±1 in the volume/pitch effects between its PC side and its Z80 player - the same tolerance `verification.md` records as a PASS for AKL's eleven. The annotation check proves both the instrument's volume nibble and the effect's inverted volume are read correctly, so the subtraction's inputs are right and only Arkos's arithmetic differs. |
+| `env shape` | AKM inherits AKL's envelope limitation - shapes 8 and 0xa only. A tune whose real envelope is neither, and not one shifted pair either, cannot be represented; `tools/arkos.py` warns. |
+| everything on a silent channel | Arkos leaves a silent channel's registers alone, so its period and mixer bits go stale. `compare_audible` already ignores this for AKL. |
+
+### What is NOT explained, and is why step 1 is not signed off
+
+**25 of the 64 songs still differ in ways none of those classes covers.** They
+are overwhelmingly native `.aks` songs rather than `.sks` ones:
 
 | folder | clean or +1-only | differs |
 |---|--:|--:|
@@ -129,15 +178,21 @@ The 22 that do not verify are concentrated in native `.aks` songs rather than
 | `songs/ArkosTracker2` (`.aks`) | 2 | 8 |
 | `songs/ArkosTracker3` (`.aks`) | 1 | 4 |
 
-StarKos is the older and poorer format and cannot express what a native
-Arkos song can, so `.sks` tunes pass largely because they never reach the
-paths that are wrong. The residue is concentrated in tunes using the
-**arpeggio table, the pitch table, the reset effect and multi-effect
-chains** — which are, not coincidentally, among the paths AKL has never
-executed either.
+StarKos is the older and poorer format and cannot express what a native Arkos
+song can, so `.sks` tunes largely pass by never reaching whatever is wrong.
 
-**So step 1 is not finished.** It accepts when every audible mismatch is
-none or explained, and 22 songs are neither.
+**The cause is not the decode.** The annotation check above proves the note,
+instrument, wait, effects, instrument volumes and linker are all read exactly
+as Arkos says they should be, on every one of these songs. The difference is
+in *rendering*: which instrument cell is heard on which frame.
+
+The clearest case, `FenyxKell - KellyOn.sks` channel 3, frame 100, traced in
+full: both players agree for 100 frames; the cell at &44FE decodes identically
+in both (note reference 1, new escape instrument 4, primary wait 0, volume
+effect with inverted volume 5); every preceding cell has wait 0; the linker
+agrees; no pattern boundary is near. Arkos nonetheless holds the channel
+silent for one more line and starts instrument 4 four frames later than a
+literal reading of the data does. **Not yet explained.**
 
 ## Which songs reach which paths
 

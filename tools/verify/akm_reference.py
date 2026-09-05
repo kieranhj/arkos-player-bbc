@@ -128,6 +128,14 @@ class Player(object):
         for t in self.tr:
             t.pt_inst = p
 
+        # Optional decode log, for tools/verify/akm_source_check.py. None
+        # switches it off entirely and costs nothing.
+        self.trace = None
+        self.fx_trace = []
+        self.inst_trace = []
+        self.lnk_trace = []
+        self._cell_at = self._cell_note = self._cell_inst = None
+
         self.regs = [0] * 14
         self.r13 = 0
         self.r13_old = 0
@@ -160,6 +168,7 @@ class Player(object):
                 t.esc_inst = self.def_inst
                 t.esc_wait = self.def_wait
 
+            start = hl
             flags = self.b(hl)
             hl += 1
 
@@ -187,6 +196,12 @@ class Player(object):
             for t in self.tr:
                 hl, flags = self.transposition_and_track(t, hl, flags)
 
+            if self.trace is not None:
+                self.lnk_trace.append(
+                    {'at': start, 'end': hl, 'speed': self.speed,
+                     'height': self.pat_height,
+                     'tracks': [t.pt_track for t in self.tr],
+                     'transp': [t.transp for t in self.tr]})
             self.linker = hl
             return
 
@@ -228,8 +243,11 @@ class Player(object):
         hl = t.pt_track
 
         note = None
+        self._cell_at = hl
+        self._cell_note = self._cell_inst = None
         while True:                                     # RT_GetDataByte
             bb = self.b(hl)
+            self._cell_at = hl
             hl += 1
             a = bb & 0x0F
 
@@ -260,6 +278,7 @@ class Player(object):
             break
 
         t.base_note = (note + t.transp) & 0xFF
+        self._cell_note = note
 
         # ---- instrument ----
         ii = bb & 0x30
@@ -275,6 +294,7 @@ class Player(object):
             t.esc_inst = inst
             self.note('cell:new-escape-instrument')
 
+        self._cell_inst = inst
         p = self.w(self.pt_inst_tbl + ((inst * 2) & 0xFF))
         t.inst_speed = self.b(p)
         t.pt_inst = p + 1
@@ -308,6 +328,10 @@ class Player(object):
             t.esc_wait = wait
             self.note('cell:new-escape-wait')
         t.wait = wait
+        if self.trace is not None:
+            self.trace.append({'at': self._cell_at, 'note': self._cell_note,
+                               'inst': self._cell_inst, 'wait': wait,
+                               'transp': t.transp})
 
         if self.fx_flag:
             self.fx_flag = 0
@@ -318,11 +342,21 @@ class Player(object):
     def read_effects(self, t, hl):
         while True:
             bb = self.b(hl)
+            at = hl
             hl += 1
             num = (bb >> 1) & 7
             a = (bb >> 4) & 0x0F
             self.note('fx%d' % num)
             hl = self.FX[num](self, t, a, hl)
+            if self.trace is not None:
+                self.fx_trace.append({'at': at, 'num': num, 'data': a,
+                                      'inv_vol': t.inv_vol,
+                                      'pud': t.pud_used,
+                                      'speed': t.pitch_speed,
+                                      'arp': t.arp_used, 'pit': t.pit_used,
+                                      'inst_speed': t.inst_speed,
+                                      'arp_speed': t.arp_speed,
+                                      'pit_speed': t.pit_speed})
             if not (bb & 1):                            # more effects?
                 return hl
 
@@ -481,6 +515,9 @@ class Player(object):
             if typ == 'nsnh':
                 self.note('inst:no-soft-no-hard')
                 mixer |= (1 << ch)                      # tone off
+                if self.trace is not None:
+                    self.inst_trace.append(
+                        {'at': hl - 1, 'vol': (bb >> 3) & 0x0F, 'typ': typ})
                 self.regs[8 + ch] = self.adjust_volume(bb >> 3, t)
                 if bb & 0x80:
                     self.note('inst:noise')
@@ -491,6 +528,9 @@ class Player(object):
 
             if typ == 'software':
                 self.note('inst:software')
+                if self.trace is not None:
+                    self.inst_trace.append(
+                        {'at': hl - 1, 'vol': (bb >> 2) & 0x0F, 'typ': typ})
                 self.regs[8 + ch] = self.adjust_volume(bb >> 2, t)
                 arp = 0
                 if bb & 0x80:                           # arpeggio and/or noise
@@ -513,6 +553,8 @@ class Player(object):
 
             # ---- the two hardware types share their front half ----
             self.note('inst:%s' % typ)
+            if self.trace is not None:
+                self.inst_trace.append({'at': hl - 1, 'vol': None, 'typ': typ})
             self.r13 = ENV_BASE + (2 if bb & 8 else 0)
             self.regs[8 + ch] = 16                      # envelope volume
             arp = 0

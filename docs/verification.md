@@ -103,6 +103,30 @@ ARKOS3_HOME=/nonexistent python tools/verify/verify.py --song EDGEA.SKS
 
 **Always say which oracle a figure came from.**
 
+## AKM has a second oracle: Arkos's own annotation
+
+For AKL the only oracle is a register log, which shows a decode fault only
+once it has changed an audible register - hundreds of frames after the cause.
+AKM has a sharper one. `SongToAkm.exe` without `-bin` writes the song as
+assembler source with a comment on every byte saying what it means, so
+`tools/verify/akm_source_check.py` can hold the reference's decode against
+Arkos's own statement of it, cell by cell:
+
+    python tools/verify/akm_source_check.py --all
+
+It assembles the source export, refuses to report anything unless it matches
+the binary export byte for byte, and then checks the note, instrument, wait,
+every effect and its data, every instrument cell volume, and the linker's
+per-channel track pointers, heights and speed changes. **74 songs, 46,236
+checks, 0 disagreements as of 2026-09-05.**
+
+The linker part matters more than it looks: a wrong track pointer still reads
+perfectly valid cells - just the wrong ones - so every cell would agree with
+its comment and the tune would still be wrong. That is the check for it.
+
+This should be the first thing run against a new AKM tune, and against
+`lib/akmplayer.asm` once it exists.
+
 ## The tables
 
 `tools/make_tables.py --check` proves `lib/akl_periods.asm` and

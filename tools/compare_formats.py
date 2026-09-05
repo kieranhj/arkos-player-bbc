@@ -3,11 +3,11 @@
 
 Six ways to play the same song on an SN76489, measured the same way:
 
-  AKL, AKY   this library - a tracker replay plus lib/ay2sn.asm
+  AKL, AKY, AKM   this library - a tracker replay plus lib/ay2sn.asm
   VGC, VGI   simondotm's register-log formats and players, from
              BEEB/Repos/vgm-player-bbc, fed by ym2sn.py
-  AKM, AKG   Arkos's other tracker formats, DATA SIZE ONLY - there is no
-             6502 player for either, anywhere (docs/porting.md)
+  AKG        Arkos's other tracker format, DATA SIZE ONLY - there is no
+             6502 player for it anywhere
 
 Every cycle figure is one call of the player INCLUDING the SN76489 writes,
 simulated in py65: for AKL and AKY that is the replay plus the whole AY->SN
@@ -140,7 +140,7 @@ def akl_plays(path, addr=0x3000, frames=4000):
         return False
 
 
-def akl_aky_cost(song, player, limit=1800):
+def player_cost(song, player, limit=1800):
     """verify.py already builds, simulates and reports. Parse it.
 
     With a timeout, because AT2's AKL exporter can emit data its own format
@@ -298,10 +298,10 @@ def main():
             bad_akl.add((name, 'akl'))
 
         cost = {}
-        for player in ('akl', 'aky'):
+        for player in ('akl', 'aky', 'akm'):
             if not sizes[player] or (player == 'akl' and not akl_ok):
                 continue
-            c = akl_aky_cost(song, player)
+            c = player_cost(song, player)
             if c is None:
                 bad_akl.add((name, player))
             else:

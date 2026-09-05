@@ -47,6 +47,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 
 import akl_reference                                            # noqa: E402
+import akm_reference                                            # noqa: E402
 import arkos                                                    # noqa: E402
 import sn2wav                                                   # noqa: E402
 
@@ -92,6 +93,10 @@ def export_song(song, player, addr):
         subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'export_akl.py'),
                         song, '--addr', hex(addr), '-o', out],
                        cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
+    elif player == 'akm':
+        subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'export_akm.py'),
+                        song, '--addr', hex(addr), '-o', out],
+                       cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     else:
         exe = os.path.join(AT3, 'tools', 'SongToAky.exe')
         if not os.path.exists(exe):
@@ -116,6 +121,7 @@ def build(song, player, env_base):
     subprocess.run([beebasm(), '-i', 'tools/verify/sim.asm',
                     '-D', 'SIM_SONG=%d' % SIM_SONG,
                     '-D', 'PLAYER_AKY=%d' % (player == 'aky'),
+                    '-D', 'PLAYER_AKM=%d' % (player == 'akm'),
                     '-D', 'ENV_BASE=%d' % env_base,
                     '-d', '-labels', labels],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
@@ -187,7 +193,7 @@ def compare_audible(frames, cols, n):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--player', default='akl', choices=('akl', 'aky'))
+    ap.add_argument('--player', default='akl', choices=('akl', 'aky', 'akm'))
     ap.add_argument('--song', default=DEFAULT_SONG,
                     help='an .sks or .aks Arkos song (default: songs/Acid_demo_21.aks)')
     ap.add_argument('--frames', type=int, default=0,
@@ -203,12 +209,14 @@ def main():
 
     # AKL's envelope pair belongs to the song; the reference must use the
     # same value as the player or the comparison is meaningless.
-    env_base = arkos.envelope_base(args.song) if args.player == 'akl' else 8
+    env_base = (arkos.envelope_base(args.song)
+                if args.player in ('akl', 'akm') else 8)
     akl_reference.ENV_BASE = env_base
+    akm_reference.ENV_BASE = env_base
     img, lab, songpath, songsize = build(args.song, args.player, env_base)
     print('song:    %s' % os.path.relpath(args.song, ROOT))
     print('format:  %s, %d bytes' % (args.player.upper(), songsize))
-    if args.player == 'akl':
+    if args.player in ('akl', 'akm'):
         print('ENV_BASE: %d' % env_base)
     if args.player == 'aky':
         n_psg = aky_psgs(songpath)
@@ -238,7 +246,7 @@ def main():
 
     # Both players are handed the base of the exported data; aky_init
     # parses the AKY header itself rather than trusting a caller to.
-    init = lab['akl_init'] if args.player == 'akl' else lab['aky_init']
+    init = lab['%s_init' % args.player]
     mpu.a, mpu.x, mpu.y = SIM_SONG & 0xFF, SIM_SONG >> 8, 0
     call(init)
 
@@ -277,6 +285,8 @@ def main():
     ref = None
     if args.player == 'akl':
         ref = akl_reference.Player(open(songpath, 'rb').read(), SIM_SONG)
+    elif args.player == 'akm':
+        ref = akm_reference.Player(open(songpath, 'rb').read(), SIM_SONG)
 
     regs = lab['ay_regs']
     perframe, captured, got_frames, ref_frames = [], [], [], []
@@ -301,7 +311,8 @@ def main():
 
     print()
     if ref is not None:
-        print('1. the 6502 player against akl_reference.py, over %d frames:' % n)
+        print('1. the 6502 player against %s_reference.py, over %d frames:'
+              % (args.player, n))
         if mismatch:
             print('   *** DIFFERS on %d frames ***' % mismatch)
             print('   first: frame %d\n     6502 %s\n     ref  %s' % first)
@@ -320,7 +331,8 @@ def main():
     else:
         print('   oracle: %s' % ymexe)
         subject = ref_frames if ref is not None else got_frames
-        what = 'akl_reference.py' if ref is not None else 'the 6502 player'
+        what = (('%s_reference.py' % args.player) if ref is not None
+                else 'the 6502 player')
         bad = compare_audible(subject, ym[1], min(n, ym[0]))
         print('   %s: audible mismatches: %s' % (what, bad if bad else 'NONE'))
 

@@ -43,10 +43,26 @@ player output. Folding the register number into a direct store per site would
 save a few hundred cycles a frame — do it if you need them, and re-run
 `tools/verify/verify.py` afterwards.
 
-## To AKM
+## To AKM - DONE
 
-AKM is the format to port next: 3,654 bytes against AKL's 4,741 for the same
-tune, upstream-supported, and **no 6502 player exists anywhere**. Arkos's Z80
+`lib/akmplayer.asm` exists and is the only 6502 AKM player there is. What
+follows is the route it took, kept because it is the route to take for AKG.
+
+**The one thing worth doing differently next time**: `SongToAkm.exe` without
+`-bin` annotates every byte it exports, and `tools/verify/akm_source_check.py`
+turns that into a second oracle - one that shows a decode fault on the cell
+that caused it, rather than waiting for a register log to show it hundreds of
+frames later. Build that FIRST, not last. AKL has no equivalent and would be
+easier to finish if it did.
+
+AKM needed two things AKL did not: **its own period table** (AKM halves twelve
+octave-0 entries at run time and that disagrees with Arkos's own 128-note
+table on six notes, so `lib/akl_periods.asm` cannot be shared), and **256
+entries in it**, because AKM's note index is 8-bit and wraps where AKL's is
+masked to seven bits.
+
+The original note, kept for AKG: 3,654 bytes against AKL's 4,741 for the same
+tune, upstream-supported, and **no 6502 player existed anywhere**. Arkos's Z80
 player and format documentation are in an Arkos Tracker 3 install
 (`players/playerAkm/`), and `reference/AKM.md` is the spec.
 

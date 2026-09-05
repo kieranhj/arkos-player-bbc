@@ -9,9 +9,13 @@ replace Lightweight!"*.
 `reference/AKM.md` is the format spec and `reference/PlayerAkm_z80.asm` is
 Arkos's Z80 player, both vendored. Read those before this.
 
-**This document describes work in progress.** `tools/verify/akm_reference.py`
-exists and is proved on most of the corpus; `lib/akmplayer.asm` does not exist
-yet. What is written down here is what has been measured, and what has not.
+`lib/akmplayer.asm` is **the only 6502 AKM player there is**. Arkos ships 6502
+players for AKY alone, and only for machines with a real AY.
+
+**What is open is in [`akm-open-questions.md`](akm-open-questions.md)**: a
+rendering discrepancy on 25 corpus songs, and the eleven Atari ST and MSX
+tunes. Neither blocks the player, which is verified on the 39 songs where the
+reference itself is clean.
 
 ## Unlike AKL, it needs no Arkos Tracker 2
 
@@ -193,6 +197,70 @@ effect with inverted volume 5); every preceding cell has wait 0; the linker
 agrees; no pattern boundary is near. Arkos nonetheless holds the channel
 silent for one more line and starts instrument 4 four frames later than a
 literal reading of the data does. **Not yet explained.**
+
+## The 6502 player
+
+`lib/akmplayer.asm`, written to `aklplayer.asm`'s conventions - X is the
+channel for the whole of a channel's processing, Y the offset into the track
+or instrument being read, per-channel state in three-byte arrays indexed by X.
+25 bytes of zero page, the same as AKY.
+
+**A rewrite, not a transcription.** `PlayerAkm.asm` uses `ld sp,` as a data
+pointer, pushing the PSG registers out through a table of RET addresses, and
+self-modifies an instruction operand for every value it reads from the song
+header. Neither travels to a 6502. What is reproduced is its arithmetic,
+statement for statement.
+
+### Verified
+
+`python tools/verify/akm_verify_corpus.py` builds, simulates and diffs the
+player against `akm_reference.py` frame for frame across every song in
+`tools/verify/akm_known_good.txt`:
+
+| | |
+|---|--:|
+| songs | 39 |
+| **identical to the reference on every frame** | **39** |
+| differing | 0 |
+
+Longest single runs: *Dead On Time* over all 3,726 of its calls and *Orion
+Prime L4* over all 24,192, both identical.
+
+### Cost
+
+Cycles for one call at 2 MHz, including the whole AY-to-SN conversion:
+
+| | mean | worst frame |
+|---|--:|--:|
+| across the 39 songs | **2,410** | 4,859 |
+| the cheapest song | 2,239 | 3,989 |
+| the dearest song | 2,680 | - |
+
+For comparison on the same terms, AKL is 2,689 mean and 3,870 worst on Edge
+Grinder's tune. **Targhan's own header warns that AKM is "much slower than the
+generic one or the AKY player"** - up to 45 CPC scanlines - and on a Z80 that
+is presumably so. On a 6502 it comes out slightly *cheaper* than AKL on
+average, with a worse tail. The reason is that most of what AKM added over
+Lightweight is decoding cleverness in the TRACK, which runs once a line, while
+the per-frame path - instruments, effects, the period lookup - is nearly the
+same work. Measure, do not assume, was the instruction; this is the measurement.
+
+### Size, and the honest trade
+
+| | AKL | AKM |
+|---|--:|--:|
+| player + `ay2sn` converter | 3,612 | **4,161** |
+| EDGEA's tune data | 4,741 | **3,654** |
+| **total** | 8,353 | **7,815** |
+
+AKM's code is 549 bytes BIGGER, most of it the period table: AKL ships 128
+notes and AKM needs 256, because its note index is 8-bit and wraps. The data
+is 1,087 bytes smaller, so AKM wins overall by 538 bytes on this tune - and by
+more the longer the tune, since only the data grows.
+
+**So AKM is not simply "AKL but smaller".** It is smaller data and bigger code,
+and on a short tune AKL can still win. `tools/compare_formats.py` measures both
+on any song.
 
 ## Which songs reach which paths
 

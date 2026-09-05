@@ -9,7 +9,7 @@
 \ *   beebasm -i tools/verify/sim.asm -D SIM_SONG=16384 -D PLAYER_AKY=0 \
 \ *           -d -labels tools/verify/build/labels.txt
 \ *
-\ * PLAYER_AKY selects which replay is built around the shared ay2sn
+\ * PLAYER_AKY / PLAYER_AKM select which replay is built around the shared ay2sn
 \ * layer. Both fill ay_regs; ay2sn converts it. That is the whole
 \ * architecture, and this file is the smallest demonstration of it.
 \ ******************************************************************
@@ -18,6 +18,8 @@
 ORG &70
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.h.asm"
+ELIF PLAYER_AKM
+INCLUDE "lib/akmplayer.h.asm"
 ELSE
 INCLUDE "lib/aklplayer.h.asm"
 ENDIF
@@ -31,6 +33,8 @@ INCLUDE "lib/ay2sn.asm"
 
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.asm"
+ELIF PLAYER_AKM
+INCLUDE "lib/akmplayer.asm"
 ELSE
 INCLUDE "lib/aklplayer.asm"
 ENDIF
@@ -41,6 +45,8 @@ ENDIF
 {
 IF PLAYER_AKY
     jsr aky_play
+ELIF PLAYER_AKM
+    jsr akm_play
 ELSE
     jsr akl_play
 ENDIF

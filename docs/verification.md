@@ -3,6 +3,8 @@
 ```
 python tools/verify/verify.py                            # AKL, default song
 python tools/verify/verify.py --player aky --song X.aks
+python tools/verify/verify.py --player akm --song X.aks
+python tools/verify/akm_verify_corpus.py                 # AKM, all 39 songs
 python tools/verify/verify.py --frames 3000              # a quick pass
 python tools/verify/verify.py --snf build/runtime.snf    # and capture audio
 python tools/make_tables.py --check                      # the tables
@@ -52,6 +54,7 @@ Known-good results, 2026-09-05:
 | AKY | Rhino - Acid Demo 21 (six channels), whole tune | AT3 | **NONE** audible |
 | AKY | Rhino - Acid Demo 07 (three channels), whole tune | AT3 | **NONE** audible |
 | AKY | EDGEA, whole tune | AT3 | volumes and periods differ; the periods track the AT2/AT3 replay change below, the volumes are not yet explained |
+| **AKM** | **all 39 songs of `akm_known_good.txt`** | AT3 | **the 6502 is identical to the reference on every frame of all 39**, including all 24,192 calls of Orion Prime L4 and all 3,726 of Dead On Time. The reference differs from Arkos only by AKM's inherent six-note +1 and Arkos's documented volume plus-or-minus-one |
 
 **Eleven channel-2 periods off by one is correct.** It is Arkos's own
 documented plus-or-minus-one in the volume/pitch effects between the PC side

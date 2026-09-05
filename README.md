@@ -1,6 +1,6 @@
 # arkos-player-bbc
 
-**Arkos Tracker music on the BBC Micro.** Two 6502 replays and the
+**Arkos Tracker music on the BBC Micro.** Three 6502 replays and the
 AY-3-8912 → SN76489 layer they need to play on a machine the format was
 never meant for.
 
@@ -14,11 +14,16 @@ and only for machines with a real AY: Apple II with a Mockingboard, Oric,
 Atari with a SONari. The BBC has an SN76489 and no AY at all, so every Arkos
 player needs a conversion layer that did not exist anywhere.
 
+**`lib/akmplayer.asm` is the only 6502 AKM player there is**, on any machine.
+AKM is Arkos's smallest format and its documented successor to Lightweight;
+until now it was Z80 only.
+
 ## What is here
 
 ```
 lib/ay2sn.asm       the spine: ay_regs -> SN76489            (BBC-specific)
 lib/aklplayer.asm   AKL replay, hardware-free                (ours)
+lib/akmplayer.asm   AKM replay, hardware-free                (ours; the only one)
 lib/akyplayer.asm   AKY replay, hardware-free                (ported, MIT)
 example/            the demo, and four discs built from it
 tools/              exporters, the verification harness, a WAV renderer
@@ -31,7 +36,7 @@ library knows what machine it is on.
 
 ```
   aklplayer.asm ─┐
-                 ├──►  ay_regs (14 bytes)  ──►  ay2sn.asm  ──►  &FE4F
+  akmplayer.asm ─┼──►  ay_regs (14 bytes)  ──►  ay2sn.asm  ──►  &FE4F
   akyplayer.asm ─┘                                            (System VIA)
 ```
 
@@ -193,10 +198,24 @@ in between and flat, AKY's worst frame (2,732–2,948) beating AKL's
 (3,682–3,886) because AKY does almost nothing per frame and `ay2sn` becomes
 the whole cost.
 
-**The two Arkos formats with no player are the smallest data of all.** AKM
-beats AKL on every tune — 3,654 against 4,741 on Edge Grinder — and there is
-no 6502 AKM player anywhere in the world. That is the argument for porting
-one, and it is in [`docs/porting.md`](docs/porting.md).
+**AKM is the smallest data of all, and now it has a player.** It beats AKL on
+every tune — 3,654 bytes against 4,741 on Edge Grinder — and
+`lib/akmplayer.asm` is the only 6502 AKM replay in existence. On a 6502 it
+costs about what AKL does (2,410 cycles a call against AKL's 2,689, averaged
+over 39 songs), which is not what Targhan's own player header would lead you
+to expect: it warns that AKM is *"much slower than the generic one or the AKY
+player"*, and on a Z80 it presumably is. Most of what AKM added over
+Lightweight is decoding cleverness in the TRACK, which runs once a line; the
+per-frame path is much the same work.
+
+**But its code is bigger.** 4,161 bytes of player and converter against AKL's
+3,612, most of the difference being a period table with 256 entries where
+AKL's has 128. So AKM wins on total RAM by 538 bytes on Edge Grinder's tune,
+and by more the longer the tune, since only the data grows — but on a short
+tune AKL can still win. It is smaller data and bigger code, not simply
+"AKL but smaller". See [`docs/format-akm.md`](docs/format-akm.md).
+
+AKG remains without a 6502 player anywhere.
 
 Two things the numbers do not say on their own. Our cycle figures **include
 the whole AY→SN conversion and the bass voice**, computed every call; VGC and
@@ -269,6 +288,25 @@ The bass is only as steady as the interrupt latency — measured at about ±1%
 within a note. See [`docs/fidelity-plan.md`](docs/fidelity-plan.md), which
 also has the envelope fix and what is still open.
 
+### AKM has two things AKL has not
+
+**A second oracle.** `SongToAkm.exe` without `-bin` writes the song as
+assembler source with a comment on every byte saying what it means, so
+`tools/verify/akm_source_check.py` can hold the reference's decode against
+Arkos's own statement of it — cell by cell, rather than waiting for a register
+log to show a fault hundreds of frames after its cause. **74 songs, 48,201
+checks, zero disagreements.** AKL has no equivalent and would be easier to
+finish if it did.
+
+**A documented open question.** On 25 of the 64 CPC-clock corpus songs the
+reference and Arkos's replay still differ, in the *rendering* rather than the
+decode — the annotation oracle rules the decode out. `lib/akmplayer.asm` is
+verified on the other 39, which are listed in
+`tools/verify/akm_known_good.txt`, and the whole thing is written up in
+[`docs/akm-open-questions.md`](docs/akm-open-questions.md) along with the
+eleven Atari ST and MSX tunes, which need only a different period table and
+include the corpus's only user of SoftAndHard.
+
 ### AKL is withdrawn upstream
 
 Arkos Tracker 3 ships no Lightweight player, no format documentation and no
@@ -302,6 +340,8 @@ Nothing is checked against itself:
 |---|---|---|
 | `tools/verify/akl_reference.py` | `SongToYm.exe`'s register log — **Arkos's own full player**, same song | a misunderstanding of the format |
 | `lib/aklplayer.asm` | that reference, frame for frame | a 6502 bug |
+| `tools/verify/akm_reference.py` | **Arkos's own byte-by-byte annotation** of the same data, as well as `SongToYm.exe` | a misunderstanding of the format, ON THE CELL that caused it |
+| `lib/akmplayer.asm` | that reference, frame for frame, over 39 songs | a 6502 bug |
 | `lib/akyplayer.asm` | the oracle directly (AKY is close to a register stream, so no transcription is needed) | both at once |
 | the demo disc | the simulation, by capturing SN76489 writes in jsbeeb and finding them in it | a wiring, paging or interrupt bug |
 

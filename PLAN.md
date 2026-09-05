@@ -1,7 +1,8 @@
 # arkos-player-bbc — the plan
 
-**Status: steps 1-7 done, 2026-09-05.** Both players work and are verified against Arkos's own
-player; both demo discs build and run in jsbeeb. The README carries the results. What is left:
+**Status: steps 1-7 done, 2026-09-05, and AKM ported on the same day.** THREE players now,
+all verified against Arkos's own player; the AKL and AKY demo discs build and run in jsbeeb
+and the AKM one is not built yet. The README carries the results. What is left:
 
 - **Step 7, the fidelity work**: the envelope mean, one software bass voice and the
   periodic-noise bass are BUILT and measured — see `docs/fidelity-plan.md`. Noise rate 3 is
@@ -24,8 +25,11 @@ player; both demo discs build and run in jsbeeb. The README carries the results.
   instrument, the wait, all eight effects, every instrument cell's volume and the
   linker's track pointers, heights and speed changes. Against `SongToYm`, 39 of the 64
   CPC-clock songs are clean or differ only by AKM's inherent six-note +1.
-  `lib/akmplayer.asm` is verified on that corpus, listed in
-  `tools/verify/akm_known_good.txt`. **Two things are parked in
+  **`lib/akmplayer.asm` is written and is IDENTICAL to the reference on every frame of all
+  39** - `tools/verify/akm_verify_corpus.py` - including all 24,192 calls of Orion Prime L4
+  and all 3,726 of Dead On Time. 2,410 cycles a call on average, worst frame 4,859; AKL is
+  2,689 on the same terms, so AKM is slightly CHEAPER on a 6502 despite Targhan's warning
+  that it is much slower on a Z80. What is left is the disc (step 3) and jsbeeb. **Two things are parked in
   `docs/akm-open-questions.md`**: a rendering discrepancy on the other 25 songs (traced
   in full, cause narrowed to line timing rather than decode, not explained), and the
   eleven Atari ST and MSX tunes, which need only a different period table and would

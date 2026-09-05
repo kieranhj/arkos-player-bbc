@@ -28,16 +28,17 @@ and that channel usually has its *tone* disabled — so the volume has to be
 taken **before** the tone-disable test forces the channel to attenuation 15.
 The loudest such channel wins.
 
-## What is still missing
+## What the conversion gets wrong
 
-**Two of these are now fixed** - the envelope mean and the bass - and what
-follows describes the problems as they were measured, with the fixes noted.
-See [`fidelity-plan.md`](fidelity-plan.md).
+Three things, all of them here rather than in a replay, so all of them affect
+every player equally. **Two are now fixed**; each is marked. The measurements
+below are what the problems looked like, and are worth keeping because they
+are how the fixes were judged. [`fidelity-plan.md`](fidelity-plan.md) has the
+options that were weighed and what it cost.
 
-Three things, all known, all affecting every player equally because they live
-here rather than in a replay.
+### 1. The bass falls off the bottom of the chip — FIXED
 
-**The bass falls off the bottom of the chip, and this is the big one.** The
+**This was the big one.** The
 SN's period is ten bits, so its lowest note is 4 MHz / (32 x 1023) = **122
 Hz**. `ay2sn` halves an AY period that will not fit, an octave at a time - so
 every bass note below that comes out an octave high. `tools/verify/verify.py`
@@ -55,24 +56,36 @@ answer is to synthesise those notes with **periodic noise** on a priority
 bass channel, which is the same mechanism as the tuned noise below; the two
 fixes are really one piece of work.
 
-The other two:
+Fixed by a **software bass voice**: the channel's tone is parked at an
+inaudible 125 kHz and a User VIA T1 timer bit-bangs the note in the volume
+domain, a real square wave costing no musical channel. One voice, sticky to
+its channel. See the README and `fidelity-plan.md`.
 
-1. **Noise rate 3 — the tuned noise.** The SN's fourth noise rate clocks the
+### 2. Noise rate 3, the tuned noise — STILL OPEN
+
+**Noise rate 3 — the tuned noise.** The SN's fourth noise rate clocks the
    noise generator from tone generator 3, which is how you get a *pitched*
    drum, and how a converter fakes a bass below the SN's 122 Hz floor.
    `ym2sn.py` uses it on 1,701 frames of Edge Grinder's tune. `ay2sn.asm`
    never emits it at all, only the three fixed rates. This is the largest
    remaining difference on percussion.
 
-2. **The envelope is sampled once a frame, not averaged across it.** It
-   drives a channel's volume on 33% of that tune, and every envelope in it
-   runs at 1.2 to 2.9 complete cycles per 50 Hz field — so the per-frame
-   level is an artefact of *how* you average, and a single sample is the
-   crudest choice available. A closed-form average of a saw over a window is
-   a few multiplies; budget a couple of hundred cycles.
+### 3. The envelope was sampled, not averaged — FIXED
 
-Both are planned, with options and costs, in
-[`fidelity-plan.md`](fidelity-plan.md).
+It drove a channel's volume on 33% of EDGEA, and **every envelope in that
+tune runs 1.17 to 2.89 complete cycles per 50 Hz call** — so what the ear
+gets is the mean of the ramp, while a single sample is whichever point it
+landed on. That is why envelope frames agreed with the offline chain on 3.6%
+of tone periods.
+
+Fixed with a constant: a complete sweep of the AY's 5-bit ladder averages
+0.1961 of full amplitude, which is level 12 and SN attenuation 7. `ay2sn`
+emits it whenever the envelope completes at least one whole cycle in a call,
+and keeps sampling when it is slower. About 15 cycles.
+
+Note that the whole envelope model — the constant's threshold and the
+`env_recip` table — assumes the player is called **50 times a second**. A
+25 Hz host must double both.
 
 ## Why this is not "the same tune, smaller"
 

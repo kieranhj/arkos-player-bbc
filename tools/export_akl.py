@@ -17,10 +17,15 @@ stream runs off the end of what it was given.
 
 Two things this export loses, both documented in the AKL format spec:
 
-  * Hardware envelope shapes: AKL encodes only 8 and 0xa. If your tune uses
-    another, lib/aklplayer.asm's ENV_BASE has to compensate - it is 12 for
-    EDGEA, which is 12 throughout. Set --env-base and the player to match,
-    or use a format that carries the shape properly.
+  * Hardware envelope shapes: AKL stores one BIT of shape, meaning ENV_BASE
+    or ENV_BASE + 2, and the format defines those as 8 and 10. Most tunes
+    therefore need nothing. A tune whose real envelope AKL could not encode
+    needs lib/aklplayer.asm's ENV_BASE changed to compensate - EDGEA is
+    envelope 12 throughout and needs 12. There is no switch for it here: it
+    is an assembly-time constant in the player, and in the Python reference
+    beside it, and the two must agree. SongToAkg.exe's SOURCE export names
+    the true shape in a comment, so `grep -o "Envelope: [0-9]*"` on it tells
+    you what a tune wants; verify.py reports `env shape` when it is wrong.
   * Arpeggio and pitch TABLES are exported, but the player's table paths
     have never been exercised by any tune tested so far. --check reports
     when a song strays into one.

@@ -1,10 +1,14 @@
 # arkos-player-bbc — the plan
 
-**Status: steps 1-6 done, 2026-09-05.** Both players work and are verified against Arkos's own
+**Status: steps 1-7 done, 2026-09-05.** Both players work and are verified against Arkos's own
 player; both demo discs build and run in jsbeeb. The README carries the results. What is left:
 
-- **Step 7, the fidelity work**: not started. Noise rate 3 and averaging the envelope, both in
-  `lib/ay2sn.asm`, both benefiting either player. `docs/ay-to-sn.md`.
+- **Step 7, the fidelity work**: the envelope mean and one software bass voice are BUILT and
+  measured — see `docs/fidelity-plan.md`. Still open there: **noise rate 3**, the tuned noise,
+  the last of the three gaps in `lib/ay2sn.asm`; and a **second and third bass voice**, which
+  54 of the 72 songs Arkos ships turn out to want.
+- **Listening**: not done, and it is the point of all of it. `verify.py --snf`, then
+  `tools/sn2wav.py`, against Arkos's own `SongToWav.exe` render of the same tune.
 - **AKM**: not started, and now the clearest next move. `docs/porting.md` has the route.
 - **edge-beeb**: not yet updated to take `lib/` as a verbatim copy (decision 4).
 - **Targhan**: not yet contacted — to thank him, to confirm the demo-tune choice, and to report
@@ -12,11 +16,12 @@ player; both demo discs build and run in jsbeeb. The README carries the results.
 
 ### What the work changed about the plan below
 
-- **The demo tunes.** The plan said one Targhan song. It is now one per player: Targhan's *Dead On
-  Time* on the AKL disc, and **Rhino's Acid Demo 07** — KC has the author's permission — on the AKY
-  disc. `Acid_demo_21`, the version KC named, turns out to be a **two-PSG, six-channel** song, and
-  no single-chip player can play it; `_07` is an earlier single-PSG iteration of the same piece.
-  See `songs/README.md`.
+- **The demo tunes.** The plan said one Targhan song. It is one per player: Targhan's *Dead On
+  Time* on the AKL disc and **Rhino's Acid Demo 21** — KC has the author's permission — on the AKY
+  disc. `_21` is a **two-PSG, six-channel** song, which is why the disc briefly used the earlier
+  single-PSG `_07` instead; `aky_init` handles multiple PSGs now, and `_07` turned out to be a
+  different arrangement missing the opening pattern. `build/ARKOS-ORION.SSD` is a third disc,
+  Targhan's *Orion Prime L4* — 50 Hz, and the hardest bass test of the 72. See `songs/README.md`.
 - **The AKL disc could not use Rhino's tune anyway.** AT2's exporter produces unplayable AKL for
   it — `docs/format-akl.md`. That is why the two discs do not share a song.
 - **`make_tables.py` grew.** The plan named one missing generator; there were two files and five
@@ -25,6 +30,10 @@ player; both demo discs build and run in jsbeeb. The README carries the results.
 - **AKY needed a header parser.** The AKY binary opens with a header whose length depends on the
   PSG count, and the player wants the linker that follows it. Getting it wrong does not fail — it
   plays silence, convincingly.
+- **The replay rate is not in the exported data**, and a song that is not 50 Hz plays at the wrong
+  speed with nothing to show for it. `tools/arkos.py` reads it out of a `SongToYm` header.
+- **`ENV_BASE` was set for EDGEA and wrong for everything else.** The format's own shapes are 8 and
+  10; 12 is an EDGEA-specific compensation. See `docs/format-akl.md`.
 
 Arkos Tracker replays for the BBC Micro, with the AY-3-8912 → SN76489 layer they need in order to
 play on a machine the format was never meant for. Extracted from the Edge Grinder port
@@ -121,16 +130,16 @@ arkos-player-bbc/
     akyplayer.asm           AKY replay, hardware-free                          (ported)
     akyplayer.h.asm
   example/
-    demo.asm                one disc, both players, mute/pause, raster-bar cost meter
-    build.ps1 / build.sh    beebasm only; no ZX0, no loader
+    demo.asm                one disc per player, mute, bass toggle, raster cost band
+    build.py                exports the song, works out the replay rate, builds the disc
   tools/
     export_akl.py           SKS/AKS -> .akl at an address     (needs an AT2 install)
-    export_aky.py           any song -> .aky at an address    (AT3)
-    make_tables.py          NEW - generates lib/ay2sn_tables.asm
+    arkos.py                the replay rate, which the exports do not carry
+    make_tables.py          generates lib/ay2sn_tables.asm and lib/akl_periods.asm
+    survey_tunes.py         what every song an Arkos install ships stresses
     sn2wav.py               .snf / .vgm -> WAV, for listening
     verify/
       akl_reference.py      the Python transcription of PlayerLightweight.asm
-      aky_reference.py      the same for AKY
       sim.asm               the real lib/ sources with a ZP block and an ORG
       verify.py             build, simulate, diff against the oracle, report cost
   reference/                vendored, unmodified, for study

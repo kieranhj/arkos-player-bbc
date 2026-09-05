@@ -20,20 +20,27 @@
 \ * in the per-frame path.
 \ ******************************************************************
 
-\ AKL stores ONE BIT of envelope shape, and it means shape ENV_BASE or
-\ ENV_BASE + 2. The format defines those as 8 and 10, so 8 is the right
-\ default and the shapes come out as the tune wrote them.
-\ Set it to something else ONLY for a tune whose real envelope AKL could
-\ not encode, where the exporter substituted one it could. Edge Grinder's
-\ EDGEA is envelope 12 throughout and needs ENV_BASE = 12; Targhan's
-\ Orion Prime uses 8 and 10 and needs the default. `SongToAkg.exe` writes
-\ the true shape into its source export as a comment - grep it for
-\ "Envelope:" - and tools/verify/verify.py reports `env shape` mismatches
-\ when this is set wrong.
-\ tools/verify/akl_reference.py has its own copy and the two MUST agree,
-\ or the harness proves the player right against a reference with the
-\ same mistake in it.
-ENV_BASE = 8
+\ ******************************************************************
+\ * ENV_BASE IS THE HOST'S TO DEFINE, before it INCLUDEs this file.
+\ *
+\ * AKL stores ONE BIT of envelope shape, and it means shape ENV_BASE or
+\ * ENV_BASE + 2. The format defines those as 8 and 10, so ENV_BASE = 8
+\ * is right for any tune that really uses 8 or 10 - which is most of
+\ * them. A tune whose real envelope AKL could NOT encode gets a
+\ * substitute on export and the pair has to be shifted back: Edge
+\ * Grinder's EDGEA is envelope 12 throughout and needs ENV_BASE = 12.
+\ *
+\ * It is not defaulted here on purpose. It is a property of the SONG,
+\ * not of the player, and a default is exactly how it came to be 12 -
+\ * right for the one tune it was written for and wrong for every other.
+\ * tools/arkos.py's envelope_base() reads the true shape out of an AKG
+\ * source export and example/build.py passes it through; getting it
+\ * wrong shows up as `env shape` in tools/verify/verify.py.
+\ *
+\ * tools/verify/akl_reference.py has its own copy and the two MUST
+\ * agree, or the harness proves the player right against a reference
+\ * with the same mistake in it.
+\ ******************************************************************
 
 
 

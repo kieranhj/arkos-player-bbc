@@ -14,6 +14,7 @@
 \ * architecture, and this file is the smallest demonstration of it.
 \ ******************************************************************
 
+\ ENV_BASE is the song's, not the player's - verify.py passes it in.
 ORG &70
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.h.asm"

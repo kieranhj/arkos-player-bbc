@@ -85,15 +85,19 @@ only for a tune whose real envelope AKL could not encode and the exporter
 substituted one it could — EDGEA is envelope 12 throughout and needs
 `ENV_BASE = 12`.
 
-Getting it wrong is visible: `verify.py` reports `env shape` mismatches, and
-`SongToAkg.exe`'s source export names the true shape in a comment, so
-`grep -o "Envelope: [0-9]*"` on it tells you what a tune actually wants.
-Targhan's Orion Prime uses 8 and 10 and produced 362 `env shape` mismatches
-until the default was corrected; with it right, that tune has none at all.
+**It is not defaulted in the library at all**, because it is a property of
+the SONG and a default is exactly how it came to be 12 — right for the one
+tune it was written for and wrong for every other. The host defines it before
+including the player, and `tools/arkos.py`'s `envelope_base()` works it out:
+`SongToAkg.exe`'s SOURCE export names the true shape in a comment, so it runs
+that and reads it. `example/build.py` passes the answer through to the disc
+and `tools/verify/verify.py` uses the same value for the player and the
+Python reference, so the two cannot drift.
 
-`ENV_BASE` also appears in `tools/verify/akl_reference.py`; if one changes the
-other must, or the harness will "prove" the player correct against a
-reference carrying the same mistake.
+Getting it wrong is visible either way: `verify.py` reports `env shape`
+mismatches. Targhan's Orion Prime uses 8 and 10 and produced 362 of them
+while the constant was 12; EDGEA produces 209 while it is 8. With
+`envelope_base()` choosing, both are clean.
 
 ## Traps
 

@@ -82,12 +82,14 @@ high.
 
 Measured, per tune, over audible channel-frames:
 
-**Across all 72 songs Arkos ships** (`tools/survey_tunes.py`, which writes
-`build/tunes.md` and commits nothing): 29 want three simultaneous bass
-voices, 25 want two and 17 want one. So one voice is a real limitation on
-most tunes, and B2b is worth more than the first three tunes suggested.
-Those 72 also include four 25 Hz songs and **one at 100 Hz**, and the
-heaviest envelope use is 100% of frames against EDGEA's 33%.
+**Across a 75-song corpus** — everything an Arkos install ships, plus this
+repo's own songs and EDGEA (`tools/survey_tunes.py`, which writes
+`build/tunes.md` and commits nothing) — **30 want three simultaneous bass
+voices, 26 want two and 18 want one**. So one voice is a real limitation on
+three quarters of them, and B2b/B2c are worth more than the first three
+tunes suggested. The corpus also holds four 25 Hz songs and **one at
+100 Hz**, and the heaviest envelope use is 100% of calls against EDGEA's
+32%.
 
 | tune | below the floor | simultaneous bass voices needed |
 |---|--:|---|
@@ -179,7 +181,7 @@ right.
 
 1. ~~**E1**, the envelope constant.~~ **Done.**
 2. ~~**B2a**, one software bass voice.~~ **Done**, and working on both demo
-   discs - but see the open question below before trusting it.
+   discs.
 3. Re-measure and **listen**: `verify.py --snf` then `tools/sn2wav.py`,
    against Arkos's own `SongToWav.exe` render of the same tune. **Not done.**
 4. Only then consider B2b and E3.
@@ -200,24 +202,6 @@ one write reached the chip**. Calling `sn_write` (and saving X around it)
 fixed it immediately. `sn_write` is the sequence that is known to work; use
 it and pay the ten cycles.
 
-**An open question about the edge timing.** Captured out of jsbeeb, the bass
-edges come at the right average rate - mean 21,601 cycles against an
-expected 22,912, within 6% - but one edge lands at *exactly* 446 cycles into
-every frame, immediately after the music's last write, while the others
-drift freely as they should.
-
-That 446 is suspiciously exact. Real interrupt latency varies by a few
-cycles; a fixed offset every single frame looks like the sound write being
-**queued behind the music's ten writes** and timestamped when the chip takes
-it, rather than the interrupt being late. Rewriting the timer latches only
-when the note changes (which is now what happens, and is right anyway) did
-not shift it, which argues against the timer's phase being pulled.
-
-**It is not settled**, and the way to settle it is to time `bass_irq` itself
-- a breakpoint or a counter - rather than reading the timing off the sound
-capture, which is downstream of whatever the chip model does. Until then,
-treat the bass as working and its jitter as unmeasured.
-
 **One voice has to be shared, and naively it thrashes.** The first version
 claimed the voice for the lowest-numbered channel below the floor. On
 Targhan's Dead On Time that channel changes on **17.7% of bass calls with a
@@ -236,8 +220,8 @@ interrupt in the machine**. That one mistake caused three separate symptoms:
   * mute did not silence the bass - the four volume-off writes went out and
     the interrupt wrote the channel straight back up again;
   * a bass edge appeared at *exactly* the same offset into every frame,
-    immediately after the music, which is what the "+446" note below was
-    describing;
+    immediately after the music - the "+446" pinning, which was first
+    blamed on the emulator's sound-write queue and was nothing of the kind;
   * and the edges were irregular, which is audible as a crackle.
 
 `lda IFR : and IER : and #&40` is the idiom, and it is what
@@ -259,9 +243,15 @@ out of step.
 **The pitch is right and the jitter is small.** Measured on a single note,
 with the timer value read at the same moment: mean 8,576 cycles an edge
 against 8,576 expected - **100.0%**, 116.6 Hz intended and 116.6 Hz
-delivered - with individual edges spread about ±3.5%. That supersedes the
-"one edge pinned at +446" worry above, which came from measuring across note
-changes and comparing against a timer value read at a different moment.
+delivered. With the flag-versus-enable fault fixed, the spread within a note
+is under **±1%**.
+
+Two wrong diagnoses were made on the way here, both from the same mistake -
+comparing a timing capture against a `bass_n` read at a different moment,
+after the note had changed. One claimed the bass was an octave high; the
+other blamed the "+446" pinning on the emulator's sound-write queue. Neither
+was true: the pitch was always right, and the pinning was the IER fault
+above. **Read the state and the timing at the same instant, on one note.**
 
 **The simulator cannot test any of this.** `verify.py` runs in py65 with no
 VIA, so `bass_enable` stays 0 there and its floor metric still reports the

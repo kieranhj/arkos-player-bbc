@@ -1,7 +1,17 @@
-"""Sweep every song an Arkos install ships, and say what each one stresses.
-Writes build/tunes.md. Nothing here is committed - the songs stay in Arkos."""
+"""Sweep a corpus of Arkos songs and say what each one stresses.
+
+Every song the Arkos install ships, plus this repo's own songs/ and Edge
+Grinder's EDGEA - the tune the whole library was built for, and the one every
+figure in the docs is quoted against, so it belongs in the comparison.
+
+Writes build/tunes.md. Nothing here is committed: the Arkos songs stay in the
+Arkos install and EDGEA stays in edge-beeb.
+
+    python tools/survey_tunes.py [extra songs...]
+"""
 import sys, os, glob, subprocess, tempfile, collections
 sys.path.insert(0,'tools'); sys.path.insert(0,'tools/verify')
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 import arkos
 from verify import read_ym
 AY=1000000.0; FLOOR=4000000.0/(32*1023)
@@ -52,6 +62,12 @@ songs=[]
 for d in ('songs/STarKos','songs/ArkosTracker2','songs/ArkosTracker3'):
     songs += sorted(glob.glob(os.path.join(AT3,d,'*.sks'))+
                     glob.glob(os.path.join(AT3,d,'*.aks')))
+# this repo's own songs, and EDGEA next door in the Edge Grinder port
+songs += sorted(glob.glob(os.path.join(ROOT,'songs','*.aks')))
+EDGEA = os.path.join(os.path.dirname(ROOT),'edge-beeb','source_cpc','Music','EDGEA.SKS')
+if os.path.exists(EDGEA):
+    songs.append(EDGEA)
+songs += [a for a in sys.argv[1:] if os.path.exists(a)]
 rows=[]
 for s in songs:
     st=stats(s)

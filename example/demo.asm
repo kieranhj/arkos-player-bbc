@@ -365,7 +365,9 @@ ENDIF
 \ is TAB(x,y); the line is row 9 and the text is 15 characters in.
 .bass_at    EQUB 31, 15, 8
 .bass_on_t  EQUS "ON  "
-.bass_off_t EQUS "OFF"
+.bass_off_t EQUS "OFF "   \ four characters, like ON: the printer
+                          \ writes a fixed four, so a short string
+                          \ prints whatever byte follows it
 
 \ ---- the library ---------------------------------------------------
 INCLUDE "lib/ay2sn.asm"

@@ -109,13 +109,14 @@ def aky_psgs(path):
     return (open(path, 'rb').read()[1] + 2) // 3
 
 
-def build(song, player):
+def build(song, player, env_base):
     """Export the song at SIM_SONG and assemble the real lib/ sources around it."""
     path, size = export_song(song, player, SIM_SONG)
     labels = os.path.join(BUILD, 'labels.txt')
     subprocess.run([beebasm(), '-i', 'tools/verify/sim.asm',
                     '-D', 'SIM_SONG=%d' % SIM_SONG,
                     '-D', 'PLAYER_AKY=%d' % (player == 'aky'),
+                    '-D', 'ENV_BASE=%d' % env_base,
                     '-d', '-labels', labels],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     lab = eval(re.sub(r'(\d+)L', r'\1', open(labels).read()))[0]
@@ -197,9 +198,15 @@ def main():
     if not os.path.exists(args.song):
         raise SystemExit('song not found: %s' % args.song)
 
-    img, lab, songpath, songsize = build(args.song, args.player)
+    # AKL's envelope pair belongs to the song; the reference must use the
+    # same value as the player or the comparison is meaningless.
+    env_base = arkos.envelope_base(args.song) if args.player == 'akl' else 8
+    akl_reference.ENV_BASE = env_base
+    img, lab, songpath, songsize = build(args.song, args.player, env_base)
     print('song:    %s' % os.path.relpath(args.song, ROOT))
     print('format:  %s, %d bytes' % (args.player.upper(), songsize))
+    if args.player == 'akl':
+        print('ENV_BASE: %d' % env_base)
     if args.player == 'aky':
         n_psg = aky_psgs(songpath)
         if n_psg > 1:

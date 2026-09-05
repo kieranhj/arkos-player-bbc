@@ -40,8 +40,10 @@ library knows what machine it is on.
 Four things, and they are all `example/demo.asm` does:
 
 ```
+ENV_BASE = 8                        \ 0. AKL only: the song's envelope pair.
+                                    \    8 for almost every tune; see below
 ORG &70
-INCLUDE "lib/aklplayer.h.asm"       \ 1. the player's zero page (22 bytes;
+INCLUDE "lib/aklplayer.h.asm"       \ 1. the player's zero page (21 bytes;
                                     \    akyplayer.h.asm is 25)
 ...
 INCLUDE "lib/ay2sn.asm"             \ 2. the spine, then the player
@@ -55,6 +57,12 @@ INCLUDE "lib/aklplayer.asm"
     jsr akl_play                    \    from your VSync IRQ - see below
     jmp ay2sn
 ```
+
+**`ENV_BASE` belongs to the song, not the player**, and `lib/aklplayer.asm`
+deliberately does not default it — 8 is right for almost every tune, and a
+tune whose real envelope AKL could not encode needs the pair shifted (EDGEA
+needs 12). `tools/arkos.py` works it out from the song and
+`example/build.py` passes it in, so the demo never gets it wrong.
 
 **Call it at the rate the song was written for.** A song is authored for a
 fixed number of replays a second and **the AKL and AKY exports do not carry
@@ -81,6 +89,13 @@ python tools/make_tables.py --check          # prove the tables still match
 Needs [beebasm](https://github.com/stardot/beebasm), `pip install py65 numpy`,
 and an Arkos Tracker install to export songs and to be the oracle.
 
+`tools/survey_tunes.py` sweeps a corpus — every song an Arkos install ships,
+this repo's own, and EDGEA next door — and reports what each one stresses:
+replay rate, PSG count, envelope use, how much falls below the chip's floor,
+how often the bass changes channel. That is how the awkward cases here were
+found, and it is worth running before trusting a figure measured on one
+tune.
+
 ## Choosing a format
 
 Edge Grinder's tune (`EDGEA.SKS`, 349 s), exported 2026-09-05 with Arkos
@@ -89,16 +104,17 @@ Tracker 3.7's own tools:
 | format | bytes | 6502 player | cycles/field | notes |
 |---|--:|---|--:|---|
 | **AKM** | **3,654** | none anywhere | — | the successor to AKL. Z80 only |
-| **AKL** | 4,741 | **`lib/aklplayer.asm`** | 2,164 mean, 3,223 max | **withdrawn upstream** |
+| **AKL** | 4,741 | **`lib/aklplayer.asm`** | 2,320 mean, 3,378 max | **withdrawn upstream** |
 | AKG | 4,956 | none anywhere | — | keeps the true envelope shape |
-| **AKY** | 13,932 | **`lib/akyplayer.asm`** | 1,732 mean, 2,295 max | a register stream; cheapest CPU, largest data |
+| **AKY** | 13,932 | **`lib/akyplayer.asm`** | 1,892 mean, 2,458 max | a register stream; cheapest CPU, largest data |
 | VGC / VGI | 15,942 / 23,514 | [vgm-player-bbc](https://github.com/kieranhj/vgm-player-bbc) | 2,952 / 3,141 mean | pre-converted logs, for comparison |
 
 Cycles are at 2 MHz, for the replay **and** the AY→SN conversion **and** the
 chip writes — everything between the interrupt and the sound. Measured in
 py65 over every frame of the tune by `tools/verify/verify.py`.
 
-The code costs 2,930 bytes for AKL and 1,945 for AKY, converter included.
+The code costs **3,300 bytes for AKL and 2,365 for AKY**, converter and
+software bass included.
 
 **Pick AKL if memory is tight, AKY if cycles are** — but read the next
 section before picking AKL for anything new.
@@ -124,14 +140,28 @@ It is off until the host wires it up, because it needs an interrupt:
 
 1. put **User VIA T1 in free-run** (ACR bit 6 set, bit 7 clear) so it
    reloads itself;
-2. call `bass_irq` when User VIA T1 interrupts (IFR bit 6);
+2. call `bass_irq` when User VIA T1 interrupts — and **test the flag against
+   the enable**, `lda IFR : and IER : and #&40`. Masking a VIA interrupt does
+   not stop its timer, so bit 6 goes on being set while T1 is disabled, and
+   testing IFR alone services the bass on the back of every other interrupt
+   in the machine. That mistake cost an afternoon: it made mute not mute and
+   the bass crackle;
 3. set `bass_enable` to 1.
 
-Leave `bass_enable` at 0 and the octave shift happens as before. One voice,
-which is enough for every frame of Rhino's tune and ~90% of the others.
-`example/demo.asm` does all three. The bass is only as steady as the
-interrupt latency - see [`docs/fidelity-plan.md`](docs/fidelity-plan.md),
-which also has the envelope fix and what is still open.
+Leave `bass_enable` at 0 and the octave shift happens as before.
+`example/demo.asm` does all three, and `akl_silence` stops the bass as well
+as the four channels, so muting really mutes.
+
+**There is one voice**, and it is sticky — the channel holding it keeps it
+while it still wants it, because choosing the lowest-numbered claimant each
+call made it hop 25 times a second on a tune where two channels play the
+same low note. One voice covers every frame of Rhino's tune, but over a
+75-song corpus **30 want three simultaneous bass voices and 26 want two**,
+so it is a real limitation; the rest octave-shift as before.
+
+The bass is only as steady as the interrupt latency — measured at about ±1%
+within a note. See [`docs/fidelity-plan.md`](docs/fidelity-plan.md), which
+also has the envelope fix and what is still open.
 
 ### AKL is withdrawn upstream
 

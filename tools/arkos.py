@@ -17,6 +17,7 @@ reads it from.
 """
 
 import os
+import re
 import struct
 import subprocess
 import sys
@@ -31,6 +32,13 @@ AT3 = os.environ.get('ARKOS3_HOME',
                      os.path.join(HOME, 'OneDrive', 'Trackers', 'ArkosTracker3'))
 AT2 = os.environ.get('ARKOS2_HOME',
                      os.path.join(HOME, 'OneDrive', 'Trackers', 'Arkos Tracker 2'))
+
+
+def find(*cands):
+    for c in cands:
+        if c and os.path.exists(c):
+            return c
+    return None
 
 
 def song_to_ym_exe():
@@ -78,6 +86,52 @@ def replay_rate(song, default=50):
             pass
 
 
+def envelope_base(song, default=8):
+    """The ENV_BASE lib/aklplayer.asm needs for this song.
+
+    AKL stores ONE BIT of envelope shape, meaning ENV_BASE or ENV_BASE + 2,
+    and the format defines those as 8 and 10 - so 8 suits any tune that
+    actually uses 8 or 10. A tune whose real envelope AKL cannot encode gets
+    a substitute on export, and the player has to shift the pair back: Edge
+    Grinder's EDGEA is envelope 12 throughout and needs 12.
+
+    AKG can carry the true shape, and SongToAkg's SOURCE export writes it
+    into a comment, so that is where this reads it from. Returns `default`
+    if AKG cannot be run - a wrong guess shows up as `env shape` mismatches
+    in tools/verify/verify.py rather than silently.
+    """
+    exe = find(os.path.join(AT3, 'tools', 'SongToAkg.exe'),
+               os.path.join(AT2, 'tools', 'SongToAkg.exe'))
+    if not exe:
+        return default
+    fd, tmp = tempfile.mkstemp(suffix='.asm')
+    os.close(fd)
+    try:
+        # AT3's exporter takes -s; AT2's does not. Try it, then without.
+        r = subprocess.run([exe, '-s', '1', song, tmp],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            r = subprocess.run([exe, song, tmp], capture_output=True, text=True)
+        if r.returncode != 0:
+            return default
+        text = open(tmp, encoding='utf-8', errors='replace').read()
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    shapes = set(int(n) for n in re.findall(r'Envelope:\s*(\d+)', text))
+    if not shapes:
+        return default
+    base = min(shapes) & ~1                 # the pair is (base, base + 2)
+    if not shapes <= {base, base + 2}:
+        sys.stderr.write(
+            'warning: %s uses envelope shapes %s, which are not one AKL '
+            'pair; using %d\n' % (os.path.basename(song), sorted(shapes), base))
+    return base
+
+
 if __name__ == '__main__':
     for s in sys.argv[1:]:
-        print('%-46s %d Hz' % (os.path.basename(s), replay_rate(s)))
+        print('%-46s %d Hz, ENV_BASE %d'
+              % (os.path.basename(s), replay_rate(s), envelope_base(s)))

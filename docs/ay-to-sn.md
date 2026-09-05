@@ -67,6 +67,9 @@ The other two:
    crudest choice available. A closed-form average of a saw over a window is
    a few multiplies; budget a couple of hundred cycles.
 
+Both are planned, with options and costs, in
+[`fidelity-plan.md`](fidelity-plan.md).
+
 ## Why this is not "the same tune, smaller"
 
 An offline converter and a runtime one are not doing the same job.

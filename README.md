@@ -200,6 +200,8 @@ port](https://github.com/kieranhj/edge-beeb) and extracted from it.
   per-frame converter cannot do
 - [`docs/verification.md`](docs/verification.md) — the oracle chain and how to
   re-run it
+- [`docs/fidelity-plan.md`](docs/fidelity-plan.md) — the plan for the
+  envelope and the bass, with the measurements behind it
 - [`docs/porting.md`](docs/porting.md) — taking a replay to another 6502, or
   to a real AY
 - [`PLAN.md`](PLAN.md) — where this came from and what is left

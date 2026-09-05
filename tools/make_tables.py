@@ -33,6 +33,12 @@ ROOT = os.path.dirname(HERE)
 LIB = os.path.join(ROOT, 'lib')
 PLAYER_Z80 = os.path.join(ROOT, 'reference', 'PlayerLightweight.asm')
 
+# The two chips. The AY figure is the CPC's, which is what the songs this
+# library plays were written for; the SN figure is the BBC's. Everything
+# below is derived from these rather than from written-down thresholds.
+AY_CLOCK = 1000000
+SN_CLOCK = 4000000
+
 
 def _shape(text):
     """A file's labels and bytes, ignoring comments and layout."""
@@ -107,12 +113,29 @@ def env_shape():
 def ay_noise_rate():
     """AY 5-bit noise period -> one of the SN's three fixed noise rates.
 
-    The SN has rates 0, 1, 2 (clock/512, /1024, /2048) plus rate 3, which
-    clocks the noise from tone generator 3. Rate 3 IS NOT EMITTED YET -
-    see docs/ay-to-sn.md, "What is still missing". These thresholds are
-    the nearest fixed rate by period.
+    The SN's rates 0, 1 and 2 clock the noise at SN_CLOCK/512, /1024 and
+    /2048; rate 3 clocks it from tone generator 3 instead, which is the
+    periodic-noise bass and never a drum (see lib/ay2sn.asm). So a drum
+    picks one of three, and this is which.
+
+    NEAREST BY FREQUENCY, which is what ym2sn.py does. The table used to
+    be [0]*8 + [1]*8 + [2]*16 - thresholds at 8 and 16, described as
+    "nearest by period", and it was neither: nearest by period puts them
+    at 12 and 24 and nearest by frequency at 10.7 and 21.3. Nine entries
+    changed (AY periods 8-10 and 16-21), and on EDGEA that is 1,088 of
+    3,020 noise calls, 36%. Across the 75-song corpus the median song
+    changes on 1% of its noise calls and 17 of the 75 on more than 20%
+    (tools/survey_tunes.py, the "rate diff" column).
+
+    Frequency rather than period because that is the domain the ear hears
+    noise brightness in; taking the log of it instead moves one entry
+    (period 11), and ym2sn's linear choice is kept for exact parity with
+    the reference chain.
     """
-    return [0] * 8 + [1] * 8 + [2] * 16
+    sn = [SN_CLOCK / (32.0 * 16 * (1 << r)) for r in range(3)]
+    # the AY treats noise period 0 as 1
+    return [min(range(3), key=lambda r: abs(AY_CLOCK / (16.0 * max(n, 1)) - sn[r]))
+            for n in range(32)]
 
 
 def env_recip():

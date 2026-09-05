@@ -1,3 +1,6 @@
+\ The AY period for each of the 128 notes, taken verbatim from
+\ reference/PlayerLightweight.asm (PLY_LW_PeriodTable, the 1 MHz
+\ CPC PSG). Regenerate with tools/make_tables.py.
 .per_lo
     EQUB &ee, &18, &4d, &8e, &da, &2f, &8f, &f7, &68, &e1, &61, &e9
     EQUB &77, &0c, &a7, &47, &ed, &98, &47, &fc, &b4, &70, &31, &f4

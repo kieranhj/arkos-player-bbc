@@ -174,6 +174,7 @@ Results as of 2026-09-05:
 | player | tune | result |
 |---|---|---|
 | AKL | Targhan – Dead On Time (Ingame), 3,726 calls (**25 Hz**, 149 s) | 6502 identical to the reference; **no audible mismatch at all** |
+| AKL | Targhan – Orion Prime L4 Theme 1 (50 Hz, 484 s) | 6502 identical to the reference; **no audible mismatch at all**. 72% of it is below the chip's floor — the hardest bass test of the 72 songs |
 | AKL | EDGEA, 17,446 frames | 6502 identical to the reference; 11 channel-2 periods off by one |
 | AKY | Rhino – Acid Demo 07, whole tune | **no audible mismatch at all** |
 | AKY | Rhino – Acid Demo 21 (six channels) | **no audible mismatch at all** |

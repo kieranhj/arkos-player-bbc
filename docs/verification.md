@@ -47,7 +47,8 @@ Known-good results, 2026-09-05:
 | player | tune | oracle | result |
 |---|---|---|---|
 | AKL | Dead On Time (Ingame), 3,726 frames | AT2 | identical to reference; **NONE** audible |
-| AKL | EDGEA, 17,446 frames | AT2 | identical to reference; `{'ch2 period': 11}` |
+| AKL | EDGEA, 17,446 frames | AT2 | identical to reference; `{'ch2 period': 11}` **with `ENV_BASE = 12`**; the default 8 gives `env shape` mismatches, correctly - see `format-akl.md` |
+| AKL | Orion Prime L4 Theme 1 | AT2 | identical to reference; **NONE** audible |
 | AKY | Acid Demo 07, whole tune | AT3 | **NONE** audible |
 
 **Eleven channel-2 periods off by one is correct.** It is Arkos's own

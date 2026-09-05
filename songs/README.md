@@ -6,8 +6,8 @@ with you and the music does not.
 
 | file | composer | terms |
 |---|---|---|
-| `Acid_demo_07.aks` | Rhino (David Newman) | Distribution permitted by the author. Three channels, one PSG. This is the AKY demo disc's tune. |
-| `Acid_demo_21.aks` | Rhino (David Newman) | The same piece, later iteration. Six channels — see below. |
+| `Acid_demo_21.aks` | Rhino (David Newman) | Distribution permitted by the author. Six channels — see below. **This is the AKY demo disc's tune.** |
+| `Acid_demo_07.aks` | Rhino (David Newman) | An earlier iteration, three channels. Kept as the single-PSG case; its arrangement is not the same — it is missing the opening pattern. |
 
 ## The six-channel one
 
@@ -18,6 +18,10 @@ with you and the music does not.
 by the whole entry, so it plays the first PSG and ignores the rest. No
 preprocessing, no stripping, no separate export — it verifies against Arkos's
 own player with no audible mismatch at all. See `docs/porting.md`.
+
+The demo disc used `_07` while the player was still single-PSG only. That was
+the wrong tune: it is an earlier arrangement and is missing the opening
+pattern. `_21` is the one to use now that six channels play.
 
 `lib/aklplayer.asm` cannot help you here, and neither can AT2's AKL exporter,
 which squashes six channels into three without a word of warning — one reason

@@ -36,7 +36,7 @@ DEFAULTS = {
     'akl': (os.path.join(AT3, 'songs', 'STarKos',
                          'Targhan - Dead On Time - Ingame.sks'),
             'Targhan - Dead On Time (Ingame)'),
-    'aky': (os.path.join(ROOT, 'songs', 'Acid_demo_07.aks'),
+    'aky': (os.path.join(ROOT, 'songs', 'Acid_demo_21.aks'),
             'Rhino - Acid Demo'),
 }
 

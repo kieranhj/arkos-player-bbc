@@ -78,12 +78,22 @@ each one reads as a bug until you know it is not:
   only. EDGEA uses 12 throughout, and the exporter silently substitutes 8 — a
   saw-down where the tune wants saw-up.
 
-That last one is why `ENV_BASE` exists in `lib/aklplayer.asm`. **It is 12 for
-EDGEA and a different tune may need a different value**, or AKG, which carries
-the shape properly for 204 more bytes. `ENV_BASE` also appears in
-`tools/verify/akl_reference.py`; if one changes the other must, or the
-harness will "prove" the player correct against a reference carrying the same
-mistake.
+That last one is why `ENV_BASE` exists in `lib/aklplayer.asm`. AKL stores one
+BIT of shape and it means `ENV_BASE` or `ENV_BASE + 2`; **the format defines
+those as 8 and 10, so 8 is the default and most tunes need nothing**. Set it
+only for a tune whose real envelope AKL could not encode and the exporter
+substituted one it could — EDGEA is envelope 12 throughout and needs
+`ENV_BASE = 12`.
+
+Getting it wrong is visible: `verify.py` reports `env shape` mismatches, and
+`SongToAkg.exe`'s source export names the true shape in a comment, so
+`grep -o "Envelope: [0-9]*"` on it tells you what a tune actually wants.
+Targhan's Orion Prime uses 8 and 10 and produced 362 `env shape` mismatches
+until the default was corrected; with it right, that tune has none at all.
+
+`ENV_BASE` also appears in `tools/verify/akl_reference.py`; if one changes the
+other must, or the harness will "prove" the player correct against a
+reference carrying the same mistake.
 
 ## Traps
 

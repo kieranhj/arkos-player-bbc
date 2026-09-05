@@ -20,7 +20,20 @@
 \ * in the per-frame path.
 \ ******************************************************************
 
-ENV_BASE = 12       \ AKL encodes only envelope 8 or 10; EDGEA is 12 throughout
+\ AKL stores ONE BIT of envelope shape, and it means shape ENV_BASE or
+\ ENV_BASE + 2. The format defines those as 8 and 10, so 8 is the right
+\ default and the shapes come out as the tune wrote them.
+\ Set it to something else ONLY for a tune whose real envelope AKL could
+\ not encode, where the exporter substituted one it could. Edge Grinder's
+\ EDGEA is envelope 12 throughout and needs ENV_BASE = 12; Targhan's
+\ Orion Prime uses 8 and 10 and needs the default. `SongToAkg.exe` writes
+\ the true shape into its source export as a comment - grep it for
+\ "Envelope:" - and tools/verify/verify.py reports `env shape` mismatches
+\ when this is set wrong.
+\ tools/verify/akl_reference.py has its own copy and the two MUST agree,
+\ or the harness proves the player right against a reference with the
+\ same mistake in it.
+ENV_BASE = 8
 
 
 

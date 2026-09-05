@@ -22,7 +22,8 @@ PERIODS = [
 PERIODS += [0] * (128 - len(PERIODS))          # the table stops at 126; pad
 
 
-ENV_BASE = 12          # AKL encodes only 8 or 10; this song is 12 throughout
+ENV_BASE = 8      # the format's own shapes; see lib/aklplayer.asm.
+                  # EDGEA needs 12. THIS MUST MATCH THE PLAYER'S.
 
 
 class AklDataError(Exception):

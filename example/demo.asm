@@ -53,8 +53,9 @@ IFR_T2   = &20                  \ the raster point
 \ VSync happens in the vertical blanking, and the music is over long
 \ before the first scanline is drawn - so a band painted around it is
 \ invisible. Fire the music this many microseconds after VSync instead,
-\ 100 scanlines at 64us, which is below the banner.
-RASTER_DELAY = 100 * 64
+\ 145 scanlines at 64us, which is below the banner (MODE 6 rows are
+\ ten scanlines tall, so the text reaches about 120).
+RASTER_DELAY = 145 * 64
 
 LOAD     = &1900            \ DFS PAGE
 SONG     = &3000            \ where the tracker data is assembled
@@ -82,10 +83,13 @@ GUARD SONG
 
 .main
 {
-    lda #22 : jsr OSWRCH            \ MODE 4: 40 columns, and its screen
-    lda #4  : jsr OSWRCH            \ starts at &5800, well clear of the
-                                    \ song at &3000. MODE 1's starts AT
-                                    \ &3000 and quietly erased it.
+    lda #22 : jsr OSWRCH            \ MODE 6: 40 columns, and its screen
+    lda #6  : jsr OSWRCH            \ starts at &6000, leaving 12K for the
+                                    \ song at &3000 - a six-channel AKY
+                                    \ export needs more than MODE 4's 10K.
+                                    \ (MODE 1's screen starts AT &3000 and
+                                    \ quietly erased the song.) Still a
+                                    \ 1 bpp mode, so the band is the same.
 
     ldx #0                          \ VDU 23,1,0,0,0,0,0,0,0,0 - cursor off.
 .curs                               \ Its own loop because the banner's is
@@ -376,7 +380,7 @@ ENDIF
 \ ---- the song ------------------------------------------------------
 CLEAR SONG, SONG + 1
 ORG SONG
-GUARD &5800                     \ MODE 4's screen starts here
+GUARD &6000                     \ MODE 6's screen starts here
 .song_data
 INCBIN "example/build/song.bin"
 .song_end

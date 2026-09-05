@@ -97,6 +97,15 @@ in tune, with nothing at all to indicate a fault. `tools/verify/verify.py`
 prints the rate, `tools/arkos.py` reads it, and `example/build.py` divides
 the field rate by it.
 
+**Call it with interrupts off, or from an interrupt handler.** `ay2sn` sets
+the System VIA's DDRA once on entry, and every SN76489 write in the call after
+that relies on it still being set - so nothing that changes DDRA may run in
+the middle, and on a stock machine the MOS's own 100 Hz keyboard scan does.
+Calling from a VSync IRQ handler, as `example/demo.asm` does, satisfies this
+without doing anything: the I flag is already set. Anywhere else, wrap it in
+`sei`/`cli`. It is worth about 60 cycles a call, and it is what lets
+`sn_write` leave X and Y alone. See [`docs/performance.md`](docs/performance.md).
+
 `akl_silence` (in `ay2sn.asm`) is the four volume-off writes, for muting.
 Mute **instead of** a frame of music, never as well as: running the player
 and silencing the chip afterwards puts a burst of the tune's own volumes out

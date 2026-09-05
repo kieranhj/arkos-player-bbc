@@ -20,6 +20,22 @@
 \ *         accumulator. It is SAMPLED once a frame, not averaged over
 \ *         the frame the way ym2sn does. That is the cheap option and
 \ *         it is audibly not the same thing - see the report.
+\ *
+\ * TWO THINGS THE HOST HAS TO KNOW:
+\ *
+\ * 1. CALL THIS WITH INTERRUPTS OFF, or from an interrupt handler.
+\ *    DDRA is set ONCE on entry and every SN write after that relies on
+\ *    it still being set, so nothing that changes DDRA may run in the
+\ *    middle - and the MOS's own 100 Hz keyboard scan does. A VSync IRQ
+\ *    handler already has the I flag set and needs nothing; anywhere
+\ *    else, wrap the call in sei/cli. It is worth ~60 cycles a call and
+\ *    it is what lets sn_write leave X and Y alone.
+\ *
+\ * 2. THE CHIP'S REGISTERS ARE CACHED (sn_cache_*). A tone or volume
+\ *    byte is only sent when the register does not already hold it,
+\ *    which is 44-81% of them - see docs/performance.md. Anything that
+\ *    writes the SN behind this layer's back must call sn_forget, or
+\ *    the cache goes on claiming it knows what is in the chip.
 \ ******************************************************************
 
 \ A complete sweep of the AY's 5-bit envelope ladder averages 0.1961 of
@@ -38,13 +54,21 @@ ENV_FULL_PERIOD = 78
 
 .ay2sn
 {
+    lda #255 : sta &fe43        \ DDRA once a call, not once a byte
+
     \ ---- the envelope generator, once for all three channels -------
+    \ ONE test, not two. Whether the envelope completes whole cycles inside
+    \ a call decides BOTH the step and which level goes out, and it used to
+    \ be worked out twice - once here and once again forty cycles later,
+    \ re-reading the same two registers to reach the same answer.
     lda ay_regs+12
     bne slow_env                \ period >= 256: a step under 20000, rare
     ldy ay_regs+11
     lda env_recip_lo,y : sta env_step
     lda env_recip_hi,y : sta env_step+1
-    jmp got_step
+    cpy #ENV_FULL_PERIOD + 1
+    bcc fast_env
+    bcs got_step                \ always
 .slow_env
     lda #0    : sta env_step
     lda #&40  : sta env_step+1
@@ -56,36 +80,31 @@ ENV_FULL_PERIOD = 78
     tay
     lda env_shape,y
     sta env_level
+    jmp env_done
 
-    \ ...but a single sample is only the right answer for a SLOW envelope.
-    \ Every envelope in EDGEA runs 1.17 to 2.89 complete cycles per call,
-    \ so what the ear gets is the MEAN of the ramp while we emit whichever
-    \ point we happened to land on - which is why envelope frames agreed
-    \ with the offline chain on 3.6% of tone periods. A full sweep of the
-    \ AY's 5-bit ladder averages 0.1961 of full amplitude, which is level
-    \ ENV_MEAN_LEVEL. See docs/fidelity-plan.md.
-        \ The threshold is on the envelope PERIOD because env_step is the
-    \ phase increment modulo one cycle and cannot tell you how many whole
-    \ cycles went by. Both it and env_recip assume the player is called
-    \ 50 times a second; a 25 Hz host must double both.
-    lda ay_regs+12
-    bne env_slow                \ period >= 256: far slower than a call
-    lda ay_regs+11
-    cmp #ENV_FULL_PERIOD + 1
-    bcs env_slow
+.fast_env
+    \ A single sample is only the right answer for a SLOW envelope. Every
+    \ envelope in EDGEA runs 1.17 to 2.89 complete cycles per call, so what
+    \ the ear gets is the MEAN of the ramp while we emit whichever point we
+    \ happened to land on. The PHASE still advances - a later slow envelope
+    \ resumes from it - but the sample is never taken, so the shift, the
+    \ table lookup and the second test all go. See docs/fidelity-plan.md.
+    clc
+    lda env_phase   : adc env_step   : sta env_phase
+    lda env_phase+1 : adc env_step+1 : sta env_phase+1
     lda #ENV_MEAN_LEVEL
     sta env_level
-.env_slow
+
+.env_done
 
     lda #15                     \ nothing has the noise open yet
     sta noise_att
     lda #255                    \ and no channel has claimed the bass
     sta bass_chan
     sta bass_skip
-    ldx #2                      \ every channel on its own SN tone slot,
-.slot_id                        \ until the periodic bass moves one
-    txa : sta sn_slot,x
-    dex : bpl slot_id
+    lda #0 : sta sn_slot+0      \ every channel on its own SN tone slot,
+    lda #1 : sta sn_slot+1      \ until the periodic bass moves one
+    lda #2 : sta sn_slot+2
     jsr bass_pick               \ decide now which channel may take the voice
 
     ldx #0
@@ -158,9 +177,12 @@ ENV_FULL_PERIOD = 78
     lda snper+1
     cmp #4
     bcc fits
+.halve
     lsr snper+1
     ror snper
-    jmp fit
+    lda snper+1
+    cmp #4
+    bcs halve
 .fits
     lda snper
     ora snper+1
@@ -177,16 +199,16 @@ ENV_FULL_PERIOD = 78
     and #15
     ora sn_tone_latch,y
     sta sn_t0,x
-    lda snper+1
-    asl a : asl a : asl a : asl a
+    lda att                     \ the volume byte NOW, while Y is still the
+    ora sn_vol_latch,y          \ slot: the nibble tables below want Y
+    sta sn_v,x
+    ldy snper+1                 \ snper+1 << 4, from a four-entry table
+    lda sn_hi4,y
     sta tmp2
     lda snper
     lsr a : lsr a : lsr a : lsr a
     ora tmp2
     sta sn_t1,x
-    lda att
-    ora sn_vol_latch,y
-    sta sn_v,x
 
     inx
     cpx #3
@@ -198,21 +220,9 @@ ENV_FULL_PERIOD = 78
     \ the square wave - so this must not stamp on it once a call. That is
     \ bass_skip, and it is 255 for the periodic bass, whose tone slot has
     \ to be written silent here like any other.
-    lda sn_t0+0 : jsr sn_write
-    lda sn_t1+0 : jsr sn_write
-    lda bass_skip : beq no_v0
-    lda sn_v+0  : jsr sn_write
-.no_v0
-    lda sn_t0+1 : jsr sn_write
-    lda sn_t1+1 : jsr sn_write
-    lda bass_skip : cmp #1 : beq no_v1
-    lda sn_v+1  : jsr sn_write
-.no_v1
-    lda sn_t0+2 : jsr sn_write
-    lda sn_t1+2 : jsr sn_write
-    lda bass_skip : cmp #2 : beq no_v2
-    lda sn_v+2  : jsr sn_write
-.no_v2
+    ldx #0 : jsr sn_chan
+    ldx #1 : jsr sn_chan
+    ldx #2 : jsr sn_chan
 
     \ ---- the periodic bass owns the noise channel when it is playing
     \ The note sounds on the noise generator, clocked by tone generator 3
@@ -232,7 +242,7 @@ ENV_FULL_PERIOD = 78
 .per_same
     lda bass_att
     ora #&f0
-    jsr sn_write
+    jsr sn_vol3
     jmp bass_update
 .drums
 
@@ -260,11 +270,11 @@ ENV_FULL_PERIOD = 78
     \ used to be hard-coded to full, so every hit was flat out.
     lda noise_att
     ora #&f0
-    jsr sn_write
+    jsr sn_vol3
     jmp bass_update
 .no_noise
     lda #&ff                    \ channel 3 silent
-    jsr sn_write
+    jsr sn_vol3
     jmp bass_update
 }
 
@@ -398,6 +408,15 @@ USR_IER  = &FE6E
 }
 
 .chan_bit       equb 1, 2, 4
+
+\ snper+1 << 4, for packing a ten-bit period into the SN's second tone
+\ byte: four shifts become a lookup, and snper+1 is 0-3 by the time the
+\ halving loop is done, so four entries is the whole domain.
+\ The matching table for the other half - snper >> 4, 256 entries - was
+\ built and thrown away. It saved 4 more cycles a channel and cost 256
+\ bytes plus up to 255 of ALIGN padding, and small is what this library
+\ is for: 12 cycles a call is not worth half a page.
+.sn_hi4         equb 0, 16, 32, 48
 
 \ ******************************************************************
 \ * bass_claim - X = channel, snper = 2 * the AY period. Called from the
@@ -620,7 +639,7 @@ USR_IER  = &FE6E
     \ worked; this is simply the unambiguous form.)
     lda #&40
     sta USR_IFR
-    txa : pha                       \ sn_write uses X
+    lda #255 : sta &fe43
     lda bass_phase
     eor #1
     sta bass_phase
@@ -631,25 +650,104 @@ USR_IER  = &FE6E
     lda bass_on
 .out
     jsr sn_write
-    pla : tax
     rts
 }
 
-\ One byte to the SN76489. Lifted verbatim from lib/vgiplayer.asm -
-\ it drives the System VIA and the addressable latch, and it uses X.
+\ ******************************************************************
+\ * sn_chan - X = channel. Its three SN bytes, but only the ones the
+\ * chip does not already hold.
+\ *
+\ * The SN's tone and volume registers LATCH, so re-sending a byte a
+\ * register already has is audibly nothing and costs 38 cycles - and
+\ * measured over the corpus, 44-81% of what this layer used to send was
+\ * exactly that. Ten bytes of cache buy it back.
+\ *
+\ * The cache is indexed by SN SLOT, not by channel: the periodic bass
+\ * swaps a channel onto tone slot 2, and it is the slot that names the
+\ * register. A tone is a latch/data PAIR and is compared as one - the
+\ * low nibble alone changing is still a different note.
+\ ******************************************************************
+.sn_chan
+{
+    ldy sn_slot,x
+    lda sn_t0,x
+    cmp sn_cache_t0,y
+    bne do_tone
+    lda sn_t1,x
+    cmp sn_cache_t1,y
+    beq tone_same
+.do_tone
+    lda sn_t0,x : sta sn_cache_t0,y : jsr sn_write
+    lda sn_t1,x : sta sn_cache_t1,y : jsr sn_write
+.tone_same
+    cpx bass_skip
+    beq irq_owns
+    lda sn_v,x
+    cmp sn_cache_v,y
+    beq out
+    sta sn_cache_v,y
+    jmp sn_write
+.irq_owns
+    \ The software bass interrupt writes this channel's volume behind the
+    \ cache's back, so whatever the cache holds is a lie. &00 is not a
+    \ volume byte any path can emit - they are &9x, &bx and &dx - so it
+    \ forces the write on the first call after the bass gives the channel
+    \ back. Without it the channel stays stuck at the square wave's level.
+    lda #0
+    sta sn_cache_v,y
+.out
+    rts
+}
+.sn_cache_t0 skip 3
+.sn_cache_t1 skip 3
+.sn_cache_v  skip 4     \ three tone channels, then the noise channel
+
+\ Invalidate the cache: the next call rewrites everything. Anything that
+\ writes the SN behind this layer's back - akl_silence's four volume-off
+\ bytes, a host's own sound code - has to call this or the cache goes on
+\ claiming it knows what is in the chip. &00 is not a byte any cached
+\ register can legally hold, which is what makes it the invalid marker.
+.sn_forget
+{
+    lda #0
+    ldx #9
+.wipe
+    sta sn_cache_t0,x
+    dex
+    bpl wipe
+    rts
+}
+
+\ The noise CHANNEL's volume - SN register 7 - latches like every other,
+\ and it was the one byte still going out on every single call: the drum
+\ path, the silent path and the periodic bass all wrote it
+\ unconditionally. Caught by capturing the REAL write stream out of
+\ jsbeeb; the simulator had been told to expect it and did not blink.
+.sn_vol3
+{
+    cmp sn_cache_v+3
+    beq same
+    sta sn_cache_v+3
+    jmp sn_write
+.same
+    rts
+}
+
+\ One byte to the SN76489, through the System VIA and the addressable
+\ latch. Started as lib/vgiplayer.asm's, less the `ldx #255 : stx &fe43`
+\ that set DDRA on every byte: that is the caller's now, once a call
+\ rather than ten times (see the header), which is why this uses no
+\ index register at all and leaves X and Y for its callers.
 .sn_write
 {
-    ldx #255
-    stx &fe43
     sta &fe4f
-    inx
-    stx &fe40
+    lda #0
+    sta &fe40
     lda &fe40
     ora #8
     sta &fe40
     rts
 }
-
 .ay_regs      skip 14   \ THE BOUNDARY: the AY-3-8912 register file that
                           \ every player in this library fills, and that
                           \ ay2sn converts. R0-R13, in AY order.
@@ -708,6 +806,8 @@ INCLUDE "lib/ay2sn_tables.asm"
 
 .akl_silence
 {
+    lda #255 : sta &fe43
+    jsr sn_forget               \ these four writes go round the cache
     jsr bass_stop               \ mute has to stop the bass too, or its
     lda #&9f : jsr sn_write     \ interrupt writes the channel straight
                                 \ back up again fifty times a second

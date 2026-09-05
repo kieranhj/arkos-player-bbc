@@ -47,9 +47,9 @@ INCLUDE "lib/aklplayer.h.asm"       \ 1. the player's zero page (22 bytes;
 INCLUDE "lib/ay2sn.asm"             \ 2. the spine, then the player
 INCLUDE "lib/aklplayer.asm"
 ...
-    lda #LO(song) : ldx #HI(song)   \ 3. once
-    ldy #0                          \    (subsong index; AKY has no Y)
-    jsr akl_init
+    lda #LO(song) : ldx #HI(song)   \ 3. once, with the exported data's
+    ldy #0                          \    base (subsong index in Y; AKY
+    jsr akl_init                    \    has no Y and parses its header)
 ...
 .every_50hz_field                   \ 4. once a field, from your VSync IRQ
     jsr akl_play
@@ -94,6 +94,23 @@ The code costs 2,930 bytes for AKL and 1,945 for AKY, converter included.
 **Pick AKL if memory is tight, AKY if cycles are** — but read the next
 section before picking AKL for anything new.
 
+### Six-channel songs
+
+A six-channel Arkos song carries two PSGs, and the BBC has one sound chip.
+`aky_init` reads the channel count from the AKY header and steps the linker
+by the whole entry, so **it plays the first PSG and ignores the rest** — no
+preprocessing, no separate export. That is often exactly right rather than a
+compromise: Arkos songs sometimes carry event data on a second PSG, and
+Rhino's Acid Demo does.
+
+### The bass
+
+The SN76489's lowest note is 122 Hz, and `ay2sn` shifts anything lower up an
+octave. Between a third and nearly half of every tune measured falls below
+that line, so a tune with a tuned bass is the one that will sound most wrong
+even when the registers are exact. `tools/verify/verify.py` reports the
+figure per tune; `docs/ay-to-sn.md` has the numbers and the fix.
+
 ### AKL is withdrawn upstream
 
 Arkos Tracker 3 ships no Lightweight player, no format documentation and no
@@ -137,6 +154,7 @@ Results as of 2026-09-05:
 | AKL | Targhan – Dead On Time (Ingame), 3,726 frames | 6502 identical to the reference; **no audible mismatch at all** |
 | AKL | EDGEA, 17,446 frames | 6502 identical to the reference; 11 channel-2 periods off by one |
 | AKY | Rhino – Acid Demo 07, whole tune | **no audible mismatch at all** |
+| AKY | Rhino – Acid Demo 21 (six channels) | **no audible mismatch at all** |
 | AKY | EDGEA | periods differ as below; volumes differ, not yet explained |
 
 Those eleven are **correct**, not a defect: Arkos documents a ±1 difference in

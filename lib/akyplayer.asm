@@ -30,11 +30,55 @@
 \ ******************************************************************
 
 \ ******************************************************************
-\ * aky_init - A/X = lo/hi of the subsong's linker
+\ * aky_init - A/X = lo/hi of the AKY FILE (its header, not the linker)
+\ *
+\ * The Atari player is handed the linker directly and ignores the
+\ * header, because its songs come from a source export with labels.
+\ * A binary export has no labels, so this parses the header instead:
+\ * one flags byte, one channel count, then a four-byte PSG frequency
+\ * PER PSG. Getting that offset wrong does not fail - the player reads
+\ * the frequency as a linker entry and plays convincing silence.
+\ *
+\ * The channel count also gives the linker's STRIDE. A linker entry is
+\ * a duration word and then one track pointer per channel, so a
+\ * six-channel song's entries are 14 bytes where a three-channel
+\ * song's are 8. Reading the first three pointers and stepping by the
+\ * full stride plays the FIRST PSG of a multi-PSG song and ignores the
+\ * rest - which is what you want when the other channels are not music
+\ * (Arkos songs sometimes carry event data on a second PSG), and is
+\ * the only thing a one-chip machine can do in any case.
 \ ******************************************************************
 .aky_init
 {
-    sta aky_linker : stx aky_linker+1
+    sta aky_block : stx aky_block+1
+
+    ldy #1
+    lda (aky_block),y               \ channel count: three per PSG
+    ldx #0
+.count_psgs
+    cmp #3
+    bcc counted
+    sbc #3                          \ carry is set: A >= 3
+    inx
+    bne count_psgs                  \ always
+.counted
+    txa                             \ X = PSGs
+    asl a                           \ 2 * PSGs
+    sta aky_stride
+    asl a                           \ 4 * PSGs = the frequency bytes
+    pha                             \ ...which is the header, less two
+    clc
+    adc aky_stride                  \ 6 * PSGs = the pointer bytes
+    adc #2                          \ + the duration word = the stride
+    sta aky_stride
+
+    pla                             \ the header length, less its two
+    clc                             \ leading bytes
+    adc #2
+    clc
+    adc aky_block   : sta aky_linker
+    lda aky_block+1 : adc #0 : sta aky_linker+1
+
     ldx #1
     stx aky_c1_state
     stx aky_c2_state
@@ -110,8 +154,11 @@
     cpy #7
     bcc lk_loop
 
-    tya                             \ y = 7, carry set: + 8
-    adc aky_linker
+    \ Step by the WHOLE entry, which for a multi-PSG song is longer
+    \ than the three pointers just read - see aky_init.
+    lda aky_linker
+    clc
+    adc aky_stride
     sta aky_linker
     bcc lk_done
     inc aky_linker+1
@@ -622,6 +669,7 @@
 .aky_envshape       skip 1
 .aky_envshape_old   skip 1
 .aky_mixer          skip 1
+.aky_stride         skip 1   \ bytes per linker entry; aky_init works it out
 
 .aky_tone_lo    equb 0, 2, 4        \ AY register numbers, per channel
 .aky_tone_hi    equb 1, 3, 5

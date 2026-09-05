@@ -67,10 +67,20 @@ whatever `ENV_BASE` does for AKL, an AKM player will need too.
 
 ## Multiple PSGs
 
-Every Arkos AKY player is single-PSG, this one included, and a BBC has one
-sound chip. `verify.py` and `example/build.py` read the channel count out of
-the AKY header and refuse a six-channel song with an explanation rather than
-playing half of it. See `songs/README.md`.
+A six-channel Arkos song carries two PSGs, and a BBC has one sound chip.
+`aky_init` handles it: a linker entry is a duration word and then one track
+pointer per channel, so it reads the first three pointers and steps by the
+whole entry. **The first PSG plays and the rest is ignored**, at a cost of
+one byte of state and no preprocessing.
+
+That is not just a fallback. Arkos songs sometimes carry non-musical data on
+a second PSG - Rhino's Acid Demo puts *event data* on channels 4 to 6, riding
+on the command stream - and in that case playing the first PSG alone is
+exactly right rather than a compromise.
+
+`lib/aklplayer.asm` has no equivalent: AKL is a single-PSG format and its
+exporter squashes a six-channel song into three without a word (see
+`format-akl.md`).
 
 ## The AKY header
 
@@ -78,8 +88,10 @@ The AKY binary does not start with the linker, and the player wants the
 linker. The header is one flags byte, one channel-count byte, then a
 four-byte PSG frequency **per PSG** — so six bytes for a three-channel song
 and ten for a six-channel one. Arkos's own testers dodge this by using the
-source export and its labels; a binary export has to compute it.
+source export and its labels; a binary export has to compute it, so
+`aky_init` parses the header itself rather than trusting a caller.
 
 Getting it wrong does not fail. The player reads the PSG frequency as a
 linker entry and plays convincing nonsense — silent channels, period 1 —
-which is exactly what it did here first time.
+which is exactly what it did here first time, with the host computing the
+offset. That is why the player does it now.

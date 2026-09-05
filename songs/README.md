@@ -6,19 +6,30 @@ with you and the music does not.
 
 | file | composer | terms |
 |---|---|---|
-| `Acid_demo_07.aks` | Rhino (David Newman) | Distribution permitted by the author, given to KC for the Nova invitro. Single PSG, so the players here can play it. |
-| `Acid_demo_21.aks` | Rhino (David Newman) | The same tune, later iteration. **Two PSGs / six channels** — see below. |
+| `Acid_demo_07.aks` | Rhino (David Newman) | Distribution permitted by the author. Three channels, one PSG. This is the AKY demo disc's tune. |
+| `Acid_demo_21.aks` | Rhino (David Newman) | The same piece, later iteration. Six channels — see below. |
 
-## Two PSGs
+## The six-channel one
 
-`Acid_demo_21.aks` is a six-channel song: two AY chips. Every Arkos AKY
-player, including this one, is single-PSG, and a BBC has one sound chip.
-`tools/verify/verify.py` refuses it with an explanation rather than playing
-half of it.
+`Acid_demo_21.aks` carries two PSGs. Only the first three channels are music:
+**the second three are event data riding on the Arkos command stream.**
 
-`Acid_demo_07` and `Acid_demo_08` are earlier, single-PSG iterations of the
-same piece, which is why `_07` is the one on the AKY demo disc. To use `_21`,
-open it in Arkos Tracker 3 and export a version with one PSG.
+`aky_init` reads the channel count out of the AKY header and steps the linker
+by the whole entry, so it plays the first PSG and ignores the rest. No
+preprocessing, no stripping, no separate export — it verifies against Arkos's
+own player with no audible mismatch at all. See `docs/porting.md`.
+
+`lib/aklplayer.asm` cannot help you here, and neither can AT2's AKL exporter,
+which squashes six channels into three without a word of warning — one reason
+the AKL disc uses a different tune. See `docs/format-akl.md`.
+
+## A hard test case
+
+Rhino's tune leans on a **tuned bass**, and the SN76489's lowest note is 122
+Hz. 43% of its audible channel-frames are below that floor and come out an
+octave high — the worst of any tune measured. It is the right tune to judge
+the conversion by, and the wrong one to conclude the players are broken from:
+at the register level it is exact.
 
 ## What Arkos ships
 

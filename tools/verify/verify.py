@@ -103,25 +103,9 @@ def export_song(song, player, addr):
     return out, os.path.getsize(out)
 
 
-def aky_linker_offset(path):
-    """Where the Linker starts, past the AKY header.
-
-    The header is one flags byte, one channel-count byte, then a four-byte
-    PSG frequency FOR EACH PSG - and a PSG is three channels, so a
-    six-channel song carries two of them and the header is four bytes
-    longer. Getting this wrong points the player at the frequency instead
-    of the linker, and it plays convincing nonsense rather than failing.
-    """
-    d = open(path, 'rb').read()
-    chans = d[1]
-    psgs = (chans + 2) // 3
-    if psgs != 1:
-        raise SystemExit(
-            'this song has %d channels (%d PSGs). lib/akyplayer.asm is a '
-            'single-PSG player, like every AKY player Arkos ships, and the '
-            'BBC has one sound chip. Export a one-PSG version of the song.'
-            % (chans, psgs))
-    return 2 + 4 * psgs
+def aky_psgs(path):
+    """How many PSGs the AKY export carries. Three channels make a PSG."""
+    return (open(path, 'rb').read()[1] + 2) // 3
 
 
 def build(song, player):
@@ -215,6 +199,11 @@ def main():
     img, lab, songpath, songsize = build(args.song, args.player)
     print('song:    %s' % os.path.relpath(args.song, ROOT))
     print('format:  %s, %d bytes' % (args.player.upper(), songsize))
+    if args.player == 'aky':
+        n_psg = aky_psgs(songpath)
+        if n_psg > 1:
+            print('         %d PSGs: playing the FIRST, ignoring %d more channels'
+                  % (n_psg, 3 * (n_psg - 1)))
     print('code:    %d bytes (&%04X-&%04X), player + converter'
           % (lab['all_end'] - lab['start'], lab['start'], lab['all_end']))
 
@@ -236,11 +225,10 @@ def main():
             mpu.step()
         return mpu.processorCycles - c0
 
-    if args.player == 'akl':
-        init, entry = lab['akl_init'], SIM_SONG
-    else:
-        init, entry = lab['aky_init'], SIM_SONG + aky_linker_offset(songpath)
-    mpu.a, mpu.x, mpu.y = entry & 0xFF, entry >> 8, 0
+    # Both players are handed the base of the exported data; aky_init
+    # parses the AKY header itself rather than trusting a caller to.
+    init = lab['akl_init'] if args.player == 'akl' else lab['aky_init']
+    mpu.a, mpu.x, mpu.y = SIM_SONG & 0xFF, SIM_SONG >> 8, 0
     call(init)
 
     ym, ymexe = oracle(args.song)
@@ -309,6 +297,34 @@ def main():
           % (min(len(w) for w in captured),
              sum(len(w) for w in captured) / float(len(captured)),
              max(len(w) for w in captured)))
+
+    # How much of the tune falls off the bottom of the SN76489.
+    #
+    # The SN's period is ten bits, so its lowest note is 4 MHz / (32 * 1023)
+    # = 122 Hz. ay2sn halves an AY period that will not fit, an octave at a
+    # time - so every bass note below that comes out an OCTAVE HIGH. It is
+    # the single most audible thing this conversion does wrong, and a tune
+    # with a tuned bass will show it here.
+    shifted, audible = 0, 0
+    for got in got_frames:
+        for ch in range(3):
+            vol = got[8 + ch]
+            if not (vol & 31) or (got[7] >> ch) & 1:
+                continue                        # silent, or tone disabled
+            audible += 1
+            if (got[2 * ch] | ((got[2 * ch + 1] & 15) << 8)) > 511:
+                shifted += 1
+    print()
+    print("4. below the SN76489's 122 Hz floor, so shifted up an octave:")
+    if audible:
+        print('   %d of %d audible channel-frames (%.1f%%)'
+              % (shifted, audible, 100.0 * shifted / audible))
+        if shifted:
+            print('   This tune has notes the chip cannot reach. See')
+            print('   docs/ay-to-sn.md, "What is still missing".')
+    else:
+        print('   nothing audible in this range')
+
 
     if args.snf:
         os.makedirs(os.path.dirname(os.path.abspath(args.snf)), exist_ok=True)

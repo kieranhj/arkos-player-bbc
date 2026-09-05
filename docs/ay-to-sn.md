@@ -30,8 +30,28 @@ The loudest such channel wins.
 
 ## What is still missing
 
-Two things, both known, both affecting every player equally because they live
-here rather than in a replay:
+Three things, all known, all affecting every player equally because they live
+here rather than in a replay.
+
+**The bass falls off the bottom of the chip, and this is the big one.** The
+SN's period is ten bits, so its lowest note is 4 MHz / (32 x 1023) = **122
+Hz**. `ay2sn` halves an AY period that will not fit, an octave at a time - so
+every bass note below that comes out an octave high. `tools/verify/verify.py`
+measures it per tune:
+
+| tune | audible channel-frames below the floor |
+|---|--:|
+| Rhino - Acid Demo 07 | **43.0%** |
+| Targhan - Dead On Time (Ingame) | 40.8% |
+| EDGEA | 32.6% |
+
+A third to nearly a half of every tune tried. A tune that leans on a tuned
+bass - Rhino's does - will be the one that sounds most wrong. `ym2sn.py`'s
+answer is to synthesise those notes with **periodic noise** on a priority
+bass channel, which is the same mechanism as the tuned noise below; the two
+fixes are really one piece of work.
+
+The other two:
 
 1. **Noise rate 3 — the tuned noise.** The SN's fourth noise rate clocks the
    noise generator from tone generator 3, which is how you get a *pitched*

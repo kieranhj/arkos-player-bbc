@@ -2,7 +2,7 @@
 \ * demo.asm - the smallest thing that plays an Arkos song on a BBC.
 \ *
 \ * One player, one song, a 50 Hz interrupt, and a raster bar so the
-\ * cost is visible. Assembled once per player by example/build.ps1,
+\ * cost is visible. Assembled once per player by example/build.py,
 \ * which also exports the song and writes example/build/config.asm.
 \ *
 \ * The whole integration is four things, and they are all any host
@@ -22,12 +22,26 @@ CPU 0
 OSWRCH   = &FFEE
 OSBYTE   = &FFF4
 IRQ1V    = &0204
-VIA_IFR  = &FE4D
+\ VDU 13 is a CARRIAGE RETURN and nothing more. Without a line feed
+\ beside it, every line of the banner overwrites the one before.
+
+SYS_IFR  = &FE4D                \ System VIA: VSync is bit 1
+USR_T1CL = &FE64                \ User VIA timer 1 - the raster timer.
+USR_T1CH = &FE65                \ Free on a BBC (the System VIA's T1 is
+USR_ACR  = &FE6B                \ the MOS's 100 Hz tick, and taking it
+USR_IFR  = &FE6D                \ would break the OS)
+USR_IER  = &FE6E
+
+\ VSync happens in the vertical blanking, and the music is over long
+\ before the first scanline is drawn - so a band painted around it is
+\ invisible. Fire the music this many microseconds after VSync instead,
+\ 100 scanlines at 64us, which is below the banner.
+RASTER_DELAY = 100 * 64
 
 LOAD     = &1900            \ DFS PAGE
 SONG     = &3000            \ where the tracker data is assembled
 
-\ PLAYER_AKY and AKY_LINKER come from the generated config.
+\ PLAYER_AKY and SONG_TITLE come from the generated config.
 INCLUDE "example/build/config.asm"
 
 \ ---- zero page -----------------------------------------------------
@@ -68,10 +82,9 @@ GUARD SONG
     sta mute_latch
 
 IF PLAYER_AKY
-    \ Past the AKY header: one flags byte, one channel count, then a
-    \ four-byte PSG frequency per PSG. build.ps1 measured it.
-    lda #LO(SONG + AKY_LINKER)
-    ldx #HI(SONG + AKY_LINKER)
+    \ The base of the exported data: aky_init reads the AKY header
+    \ itself and finds the linker past it.
+    lda #LO(SONG) : ldx #HI(SONG)
     jsr aky_init
 ELSE
     lda #LO(SONG) : ldx #HI(SONG) : ldy #0
@@ -118,13 +131,20 @@ ENDIF
     lda IRQ1V+1 : sta old_irq+1
     lda #LO(irq_handler) : sta IRQ1V
     lda #HI(irq_handler) : sta IRQ1V+1
+
+    lda USR_ACR : sta old_acr    \ User VIA timer 1, one-shot mode
+    and #&3F    : sta USR_ACR
+    lda #&C0    : sta USR_IER    \ enable its interrupt
     cli
     rts
 }
+.old_acr skip 1
 
 .remove_irq
 {
     sei
+    lda #&40      : sta USR_IER  \ disable it again, and put the
+    lda old_acr   : sta USR_ACR  \ User VIA back as the MOS had it
     lda old_irq   : sta IRQ1V
     lda old_irq+1 : sta IRQ1V+1
     cli
@@ -133,17 +153,33 @@ ENDIF
 
 \ The MOS has already saved A in &FC by the time IRQ1V is called, so A
 \ is ours to use; X and Y are not.
+\ Two interrupts, and the second one is only for the demonstration:
+\ VSync starts a one-shot timer, and the music runs when THAT fires, a
+\ few scanlines into the visible display. A real host would simply call
+\ music_frame at VSync - but the music is over well before the first
+\ scanline is drawn, so a band painted around it there is invisible,
+\ which is exactly what the first version of this demo did.
 .irq_handler
 {
-    lda VIA_IFR
-    and #2                          \ System VIA, VSync
+    lda USR_IFR
+    and #&40                        \ User VIA timer 1: the raster point
+    bne do_music
+
+    lda SYS_IFR
+    and #2                          \ System VIA: VSync
     beq chain
-    sta VIA_IFR                     \ clear it
+    sta SYS_IFR                     \ clear it
+    lda #LO(RASTER_DELAY) : sta USR_T1CL
+    lda #HI(RASTER_DELAY) : sta USR_T1CH    \ writing the high byte starts it
+    jmp chain
+
+.do_music
+    lda USR_T1CL                    \ reading it clears the timer's flag
     txa : pha
     tya : pha
-    lda #6 : sta &FE21              \ logical 0 -> red: the band starts
+    lda #6 : jsr band               \ red: the band starts here
     jsr music_frame
-    lda #7 : sta &FE21              \ logical 0 -> black: and it ends
+    lda #7 : jsr band               \ black: and it ends here
     pla : tay
     pla : tax
 .chain
@@ -167,6 +203,29 @@ ENDIF
     jmp silence
 }
 
+\ Paint logical colour 0 a physical colour. A is (physical EOR 7).
+\ ONE write to &FE21 sets ONE of the SIXTEEN palette entries, and a
+\ 1 bpp mode spreads each logical colour over EIGHT of them: 0-7 are
+\ logical 0 and 8-15 are logical 1 (measured in jsbeeb, 2026-09-05 -
+\ writing entry 0 alone bands part of every character cell, and the
+\ even entries are not the set either). So eight writes, and the text
+\ in logical 1 is left alone. A 4-colour mode needs four writes per
+\ colour and a 16-colour mode one.
+.band
+{
+    sta band_col
+    ldx #7
+.next
+    txa
+    asl a : asl a : asl a : asl a
+    ora band_col
+    sta &FE21
+    dex
+    bpl next
+    rts
+}
+.band_col skip 1
+
 \ silence: the four volume-off writes. It lives in ay2sn.asm and is not
 \ AKL-specific, despite the name it arrived with.
 .silence
@@ -174,13 +233,13 @@ ENDIF
 
 .banner
 IF PLAYER_AKY
-    EQUS 13, 13, "  Arkos Tracker AKY replay for the BBC Micro", 13
+    EQUS 13, 10, 13, 10, "  Arkos Tracker AKY replay for the BBC Micro", 13, 10
 ELSE
-    EQUS 13, 13, "  Arkos Tracker AKL replay for the BBC Micro", 13
+    EQUS 13, 10, 13, 10, "  Arkos Tracker AKL replay for the BBC Micro", 13, 10
 ENDIF
-    EQUS 13, "  ", SONG_TITLE, 13
-    EQUS 13, "  The red band is the music.", 13
-    EQUS "  SPACE mutes.  ESCAPE quits.", 13
+    EQUS 13, 10, "  ", SONG_TITLE, 13, 10
+    EQUS 13, 10, "  The red band is the music.", 13, 10
+    EQUS "  SPACE mutes.  ESCAPE quits.", 13, 10
     EQUB 0
 
 \ ---- the library ---------------------------------------------------

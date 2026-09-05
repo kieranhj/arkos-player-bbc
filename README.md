@@ -51,10 +51,19 @@ INCLUDE "lib/aklplayer.asm"
     ldy #0                          \    base (subsong index in Y; AKY
     jsr akl_init                    \    has no Y and parses its header)
 ...
-.every_50hz_field                   \ 4. once a field, from your VSync IRQ
-    jsr akl_play
+.every_field                        \ 4. at the song's OWN replay rate,
+    jsr akl_play                    \    from your VSync IRQ - see below
     jmp ay2sn
 ```
+
+**Call it at the rate the song was written for.** A song is authored for a
+fixed number of replays a second and **the AKL and AKY exports do not carry
+that number** — the player replays as often as you call it. Most Arkos songs
+are 50 Hz, so a call per field is right. Some are not: Targhan's *Dead On
+Time* is 25 Hz, and calling it every field plays it at exactly double speed,
+in tune, with nothing at all to indicate a fault. `tools/verify/verify.py`
+prints the rate, `tools/arkos.py` reads it, and `example/build.py` divides
+the field rate by it.
 
 `akl_silence` (in `ay2sn.asm`) is the four volume-off writes, for muting.
 Mute **instead of** a frame of music, never as well as: running the player
@@ -151,7 +160,7 @@ Results as of 2026-09-05:
 
 | player | tune | result |
 |---|---|---|
-| AKL | Targhan – Dead On Time (Ingame), 3,726 frames | 6502 identical to the reference; **no audible mismatch at all** |
+| AKL | Targhan – Dead On Time (Ingame), 3,726 calls (**25 Hz**, 149 s) | 6502 identical to the reference; **no audible mismatch at all** |
 | AKL | EDGEA, 17,446 frames | 6502 identical to the reference; 11 channel-2 periods off by one |
 | AKY | Rhino – Acid Demo 07, whole tune | **no audible mismatch at all** |
 | AKY | Rhino – Acid Demo 21 (six channels) | **no audible mismatch at all** |

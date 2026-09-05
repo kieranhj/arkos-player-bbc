@@ -47,6 +47,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(ROOT, 'tools'))
 
 import akl_reference                                            # noqa: E402
+import arkos                                                    # noqa: E402
 import sn2wav                                                   # noqa: E402
 
 BEEB = os.path.dirname(os.path.dirname(ROOT))
@@ -232,6 +233,23 @@ def main():
     call(init)
 
     ym, ymexe = oracle(args.song)
+    if ym:
+        # The rate the song is AUTHORED for. It is not in the exported data:
+        # the player replays as often as the host calls it, so the host has
+        # to know this and call at this rate. Most songs are 50 Hz; some are
+        # not, and one that is not plays at the wrong speed silently.
+        try:
+            rate = arkos.ym_header(os.path.join(
+                BUILD, os.path.basename(args.song) + '.ym'))[2] or 50
+        except (OSError, ValueError):
+            rate = 50
+        print('replay:  %d Hz - %d calls, %.1f seconds of music'
+              % (rate, ym[0], ym[0] / float(rate)))
+        if rate != 50:
+            print('         NOT 50 Hz: a host running off VSync must call the')
+            print('         player every %d fields, not every field.'
+                  % int(round(50.0 / rate)))
+
     n = args.frames or (ym[0] if ym else 5000)
     if ym:
         n = min(n, ym[0])

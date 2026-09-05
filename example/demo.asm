@@ -62,6 +62,7 @@ INCLUDE "lib/aklplayer.h.asm"
 ENDIF
 .muted          skip 1
 .mute_latch     skip 1
+.field_count    skip 1      ; fields until the next call to the player
 .old_irq        skip 2
 GUARD &9F
 
@@ -101,6 +102,8 @@ GUARD SONG
     lda #0
     sta muted
     sta mute_latch
+    lda #REPLAY_DIV
+    sta field_count
 
 IF PLAYER_AKY
     \ The base of the exported data: aky_init reads the AKY header
@@ -204,6 +207,18 @@ ENDIF
 
 .do_music
     lda USR_T1CL                    \ reading it clears the timer's flag
+
+    \ A song is authored for a fixed replay rate, and the AKL and AKY
+    \ exports DO NOT CARRY IT - the player replays as often as it is
+    \ called. Most Arkos songs are 50 Hz; Targhan's Dead On Time is 25,
+    \ and calling it every field played it at exactly double speed, in
+    \ tune, with nothing to show for it. example/build.py reads the rate
+    \ out of the song and sets REPLAY_DIV.
+    dec field_count
+    bne chain
+    lda #REPLAY_DIV
+    sta field_count
+
     txa : pha
     tya : pha
     lda #6 : jsr band               \ red: the band starts here

@@ -54,6 +54,30 @@ Known-good results, 2026-09-05:
 documented plus-or-minus-one in the volume/pitch effects between the PC side
 and the Z80 player. Anything else is a regression.
 
+## The replay rate is not in the exported data
+
+`verify.py` prints it, because nothing else will tell you and getting it
+wrong is silent:
+
+```
+replay:  25 Hz - 3726 calls, 149.0 seconds of music
+         NOT 50 Hz: a host running off VSync must call the
+         player every 2 fields, not every field.
+```
+
+The player replays once per call and has no idea how often that should be.
+Targhan's *Dead On Time* is a 25 Hz song and the first version of the demo
+disc called it every field, which played it at exactly double speed - in
+tune, with the right notes, and no way to tell from the register stream that
+anything was wrong. **The frame-for-frame checks above cannot catch this**:
+they compare call for call, so a player running twice too fast is perfectly
+correct on every one of them. It was caught by ear, and then confirmed
+against Arkos's own WAV render (149.0 s, against 3,726 calls at 50 Hz =
+74.5 s).
+
+`tools/arkos.py` reads the rate out of a `SongToYm.exe` header, which is the
+only place it is written down.
+
 ## The oracle is version-sensitive
 
 The same EDGEA comparison gives:

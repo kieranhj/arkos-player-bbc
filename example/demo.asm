@@ -30,6 +30,7 @@ OSBYTE   = &FFF4
 \ reads the neighbouring key and the key appears dead.
 KEY_SPACE  = 99
 KEY_ESCAPE = 113
+KEY_B      = 101
 IRQ1V    = &0204
 \ VDU 13 is a CARRIAGE RETURN and nothing more. Without a line feed
 \ beside it, every line of the banner overwrites the one before.
@@ -45,10 +46,9 @@ SYS_IFR  = &FE4D                \ System VIA: VSync is bit 1
 USR_T2CL = &FE68                \ raster: one-shot, fired from VSync
 USR_T2CH = &FE69
 USR_ACR  = &FE6B
-USR_IFR  = &FE6D
 IFR_T1   = &40                  \ the bass
 IFR_T2   = &20                  \ the raster point
-\ USR_IER is lib/ay2sn.asm's - it drives T1 itself.
+\ USR_IFR and USR_IER are lib/ay2sn.asm's - it drives T1 itself.
 
 \ VSync happens in the vertical blanking, and the music is over long
 \ before the first scanline is drawn - so a band painted around it is
@@ -115,6 +115,7 @@ GUARD SONG
     sta field_count
     lda #1                          \ hand the low notes to the software
     sta bass_enable                 \ bass instead of shifting them up
+    jsr show_bass
 
 IF PLAYER_AKY
     \ The base of the exported data: aky_init reads the AKY header
@@ -129,6 +130,21 @@ ENDIF
     jsr install_irq
 
 .loop
+    lda #&81                        \ B down? toggle the software bass, so
+    ldx #(256 - KEY_B) : ldy #&FF   \ the difference can be heard both ways
+    jsr OSBYTE
+    cpx #&FF
+    bne b_up
+    lda b_latch
+    bne after_b
+    lda bass_enable : eor #1 : sta bass_enable
+    lda #1 : sta b_latch
+    jsr show_bass
+    jmp after_b
+.b_up
+    lda #0 : sta b_latch
+.after_b
+
     lda #&81                        \ SPACE down?
     ldx #(256 - KEY_SPACE) : ldy #&FF
     jsr OSBYTE
@@ -167,6 +183,27 @@ ENDIF
 \ ******************************************************************
 \ * the 50 Hz interrupt
 \ ******************************************************************
+\ Print ON or OFF at the end of the "Software bass:" line.
+.show_bass
+{
+    ldx #0
+.pos
+    lda bass_at,x : jsr OSWRCH
+    inx : cpx #3 : bne pos
+    ldx #0
+    lda bass_enable
+    bne on
+.off_loop
+    lda bass_off_t,x : jsr OSWRCH
+    inx : cpx #4 : bne off_loop
+    rts
+.on
+    lda bass_on_t,x : jsr OSWRCH
+    inx : cpx #4 : bne on
+    rts
+}
+.b_latch skip 1
+
 .install_irq
 {
     sei
@@ -304,8 +341,16 @@ ENDIF
     EQUS "for the BBC Micro", 13, 10
     EQUS 13, 10, SONG_TITLE, 13, 10
     EQUS 13, 10, "The red band is the music.", 13, 10
-    EQUS "SPACE mutes.  ESCAPE quits.", 13, 10
+    EQUS "Software bass: ", 13, 10
+    EQUS 13, 10, "SPACE mutes.  B toggles the bass.", 13, 10
+    EQUS "ESCAPE quits.", 13, 10
     EQUB 0
+
+\ The status text sits at the end of the "Software bass: " line. VDU 31
+\ is TAB(x,y); the line is row 9 and the text is 15 characters in.
+.bass_at    EQUB 31, 15, 8
+.bass_on_t  EQUS "ON  "
+.bass_off_t EQUS "OFF"
 
 \ ---- the library ---------------------------------------------------
 INCLUDE "lib/ay2sn.asm"

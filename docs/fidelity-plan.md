@@ -82,6 +82,13 @@ high.
 
 Measured, per tune, over audible channel-frames:
 
+**Across all 72 songs Arkos ships** (`tools/survey_tunes.py`, which writes
+`build/tunes.md` and commits nothing): 29 want three simultaneous bass
+voices, 25 want two and 17 want one. So one voice is a real limitation on
+most tunes, and B2b is worth more than the first three tunes suggested.
+Those 72 also include four 25 Hz songs and **one at 100 Hz**, and the
+heaviest envelope use is 100% of frames against EDGEA's 33%.
+
 | tune | below the floor | simultaneous bass voices needed |
 |---|--:|---|
 | Rhino – Acid Demo 07 | 43.0% | **never more than one** (always ch0) |
@@ -210,6 +217,22 @@ not shift it, which argues against the timer's phase being pulled.
 - a breakpoint or a counter - rather than reading the timing off the sound
 capture, which is downstream of whatever the chip model does. Until then,
 treat the bass as working and its jitter as unmeasured.
+
+**One voice has to be shared, and naively it thrashes.** The first version
+claimed the voice for the lowest-numbered channel below the floor. On
+Targhan's Dead On Time that channel changes on **17.7% of bass calls with a
+median run of ONE call** - both channel 0 and channel 2 play the same low
+note - so the voice hopped 25 times a second and was retuned each time.
+`bass_pick` is sticky now: the channel that had the voice keeps it while it
+still wants it. Rhino's tune never changes channel and EDGEA changes on 2.4%,
+so neither showed the problem.
+
+**The pitch is right and the jitter is small.** Measured on a single note,
+with the timer value read at the same moment: mean 8,576 cycles an edge
+against 8,576 expected - **100.0%**, 116.6 Hz intended and 116.6 Hz
+delivered - with individual edges spread about ±3.5%. That supersedes the
+"one edge pinned at +446" worry above, which came from measuring across note
+changes and comparing against a timer value read at a different moment.
 
 **The simulator cannot test any of this.** `verify.py` runs in py65 with no
 VIA, so `bass_enable` stays 0 there and its floor metric still reports the

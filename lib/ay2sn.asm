@@ -71,6 +71,7 @@ ENV_FULL_PERIOD = 78
     sta noise_att
     lda #255                    \ and no channel has claimed the bass
     sta bass_chan
+    jsr bass_pick               \ ...but decide now which one may
 
     ldx #0
 .ch_loop
@@ -128,10 +129,8 @@ ENV_FULL_PERIOD = 78
     lda snper+1
     cmp #4
     bcc fit                     \ it fits: nothing to do here
-    lda bass_enable
-    beq fit                     \ no timer wired up: octave-shift as before
-    lda bass_chan
-    bpl fit                     \ the one voice is already taken this call
+    cpx bass_want
+    bne fit                     \ not the channel the voice was given to
     jsr bass_claim
 .fit
     lda snper+1
@@ -256,7 +255,76 @@ USR_T1CL = &FE64        \ counter, low  - reading it clears the interrupt
 USR_T1CH = &FE65        \ counter, high - writing it starts the timer
 USR_T1LL = &FE66        \ latch, low    - the period of the NEXT cycle...
 USR_T1LH = &FE67        \ latch, high   - ...without restarting this one
+USR_IFR  = &FE6D
 USR_IER  = &FE6E
+
+\ ******************************************************************
+\ * bass_pick - which channel gets the voice this call, into bass_want.
+\ *
+\ * There is one voice and a tune can want two, so something has to
+\ * choose - and choosing "the first one below the floor" makes the
+\ * voice THRASH. Measured on Targhan's Dead On Time: the lowest-numbered
+\ * channel below the floor changes on 17.7% of bass calls, with a median
+\ * run of ONE call, so the bass would hop between channels 25 times a
+\ * second and be retuned every time. (Rhino's tune never changes channel
+\ * and EDGEA changes on 2.4%.)
+\ *
+\ * So it is sticky: if the channel that had the voice last call still
+\ * wants it, it keeps it. Only when that channel comes back above the
+\ * floor does the voice move, and then to the lowest-numbered claimant.
+\ ******************************************************************
+.bass_pick
+{
+    lda #255
+    sta bass_want
+    lda bass_enable
+    beq out                     \ no timer wired up: nobody gets it
+
+    \ Which channels are audible and below the chip's floor?
+    lda #0
+    sta bass_mask
+    ldx #2
+.scan
+    lda ay_regs+8,x
+    and #31
+    beq next                    \ silent
+    lda ay_regs+7
+    and tone_bit,x
+    bne next                    \ tone disabled
+    ldy per_idx,x
+    lda ay_regs+1,y
+    and #15
+    cmp #2                      \ AY period >= 512 is below 122 Hz
+    bcc next
+    lda chan_bit,x
+    ora bass_mask
+    sta bass_mask
+.next
+    dex
+    bpl scan
+
+    lda bass_mask
+    beq out                     \ nobody wants it
+
+    ldx bass_prev               \ does last call's channel still want it?
+    bmi lowest
+    lda chan_bit,x
+    and bass_mask
+    bne take
+.lowest
+    ldx #0                      \ no: the lowest-numbered claimant
+    lda bass_mask
+    lsr a : bcs take
+    inx
+    lsr a : bcs take
+    inx
+.take
+    stx bass_want
+.out
+    rts
+}
+
+.chan_bit       equb 1, 2, 4
 
 \ ******************************************************************
 \ * bass_claim - X = channel, snper = 2 * the AY period. Called from the
@@ -291,6 +359,7 @@ USR_IER  = &FE6E
 .bass_update
 {
     lda bass_chan
+    sta bass_prev               \ so bass_pick can keep it next call
     bpl playing
 
     \ Nothing wants the bass. Stop the timer if it was running, and put
@@ -338,7 +407,12 @@ USR_IER  = &FE6E
 \ ******************************************************************
 .bass_irq
 {
-    lda USR_T1CL                    \ reading the counter clears the flag
+    \ Clear the timer's interrupt flag by writing the bit back to IFR,
+    \ which is the documented way and needs no reasoning about the side
+    \ effects of reading a counter. (Reading T1C-L also clears it and
+    \ worked; this is simply the unambiguous form.)
+    lda #&40
+    sta USR_IFR
     txa : pha                       \ sn_write uses X
     lda bass_phase
     eor #1
@@ -393,6 +467,9 @@ USR_IER  = &FE6E
 .bass_off     skip 1        \ ...and silent
 .bass_n       skip 2        \ the timer count: half a period, in us
 .bass_last    skip 2        \ what the timer was last actually given
+.bass_want    skip 1        \ the channel bass_pick chose this call
+.bass_prev    skip 1        \ ...and the one it chose last call
+.bass_mask    skip 1        \ which channels are below the floor
 
 .per_idx        equb 0, 2, 4
 .sn_tone_latch  equb &80, &a0, &c0

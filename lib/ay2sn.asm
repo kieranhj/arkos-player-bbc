@@ -243,7 +243,11 @@ ENV_FULL_PERIOD = 78
 \ * TO USE IT the host must:
 \ *   1. put User VIA T1 in FREE-RUN mode (ACR bit 6 set, bit 7 clear),
 \ *      so it reloads itself and the interrupt only has to toggle;
-\ *   2. call bass_irq when User VIA T1 interrupts (IFR bit 6);
+\ *   2. call bass_irq when User VIA T1 interrupts - and test the flag
+\ *      AGAINST THE ENABLE, `lda IFR : and IER : and #&40`. Masking a
+\ *      VIA interrupt does not stop its timer, so bit 6 goes on being
+\ *      set while T1 is disabled, and testing IFR alone will service
+\ *      the bass on the back of every other interrupt in the machine;
 \ *   3. set bass_enable to 1.
 \ * Leave bass_enable at 0 and none of this runs - the octave shift stays.
 \ *
@@ -361,18 +365,7 @@ USR_IER  = &FE6E
     lda bass_chan
     sta bass_prev               \ so bass_pick can keep it next call
     bpl playing
-
-    \ Nothing wants the bass. Stop the timer if it was running, and put
-    \ the channel's own volume back - the interrupt may have left it
-    \ silent, and nothing else writes it while the bass owns it.
-    lda bass_running
-    beq done
-    lda #0   : sta bass_running
-    lda #&FF : sta bass_last        \ force a retune when it comes back
-    lda #&40 : sta USR_IER          \ bit 7 clear = disable T1
-    lda bass_off
-    and #&F0                        \ the same channel, volume 0 = loudest
-    jmp sn_write
+    jmp bass_stop               \ nothing wants it: shut the timer down
 
 .playing
     \ Retune ONLY when the note has actually changed. Free-run reloads
@@ -399,6 +392,31 @@ USR_IER  = &FE6E
     lda #&C0 : sta USR_IER          \ bit 7 set = enable T1
 .done
     rts
+}
+
+\ ******************************************************************
+\ * bass_stop - silence the bass voice and shut its timer down.
+\ *
+\ * It deliberately does NOT write the channel's volume. bass_update runs
+\ * at the END of a call, after the volume writes, and on a call where
+\ * nobody claimed the voice the channel's own volume has already gone
+\ * out correctly. An earlier version wrote it here as well - and got it
+\ * wrong, forcing volume 0, full blast, for one call every time the bass
+\ * stopped. That was an audible click on every bass note ending.
+\ ******************************************************************
+.bass_stop
+{
+    \ UNCONDITIONAL. An earlier version only touched the hardware when
+    \ bass_running said the timer was going, and the flag and the chip
+    \ got out of step - mute left the timer running and the interrupt
+    \ wrote the channel back up fifty times a second underneath it.
+    \ Silencing a timer that is already silent costs 16 cycles.
+    lda #0   : sta bass_running
+    lda #&FF : sta bass_last        \ force a retune when it comes back
+    sta bass_prev
+    lda #&40 : sta USR_IER          \ bit 7 clear = disable T1
+    sta USR_IFR                     \ and drop an interrupt already pending,
+    rts                             \ or it writes one more stale volume
 }
 
 \ ******************************************************************
@@ -492,7 +510,9 @@ INCLUDE "lib/ay2sn_tables.asm"
 
 .akl_silence
 {
-    lda #&9f : jsr sn_write
+    jsr bass_stop               \ mute has to stop the bass too, or its
+    lda #&9f : jsr sn_write     \ interrupt writes the channel straight
+                                \ back up again fifty times a second
     lda #&bf : jsr sn_write
     lda #&df : jsr sn_write
     lda #&ff : jmp sn_write

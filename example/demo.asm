@@ -219,7 +219,8 @@ ENDIF
     cli
     rts
 }
-.old_acr skip 1
+.old_acr     skip 1
+.via_pending skip 1
 
 .remove_irq
 {
@@ -242,13 +243,23 @@ ENDIF
 \ which is exactly what the first version of this demo did.
 .irq_handler
 {
+    \ AND THE FLAGS WITH THE ENABLES. Masking a VIA interrupt does not
+    \ stop its timer: T1 keeps free-running and keeps SETTING IFR bit 6
+    \ even while it is disabled. Testing the flag alone therefore serviced
+    \ the bass on the back of every OTHER interrupt - so mute did not
+    \ silence it, and an edge appeared at the same offset into every
+    \ frame, right after the music. `lda IFR : and IER` is the idiom, and
+    \ it is what vgcplayer_bass.asm does.
     lda USR_IFR
+    and USR_IER
+    sta via_pending
+
     and #IFR_T1                     \ the bass square wave. bass_irq uses
     beq no_bass                     \ only A, so nothing to save
     jsr bass_irq
 .no_bass
 
-    lda USR_IFR
+    lda via_pending
     and #IFR_T2                     \ the raster point: time for the music
     beq no_music
     lda USR_T2CL                    \ reading it clears the timer's flag

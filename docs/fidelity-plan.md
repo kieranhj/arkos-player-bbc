@@ -227,6 +227,35 @@ note - so the voice hopped 25 times a second and was retuned each time.
 still wants it. Rhino's tune never changes channel and EDGEA changes on 2.4%,
 so neither showed the problem.
 
+**The one that caused the crackle: test a VIA flag against its ENABLE.**
+Masking a VIA interrupt does not stop its timer. T1 goes on free-running and
+goes on setting IFR bit 6 while it is disabled, so a handler that tests
+`IFR & &40` alone will service the bass **on the back of every other
+interrupt in the machine**. That one mistake caused three separate symptoms:
+
+  * mute did not silence the bass - the four volume-off writes went out and
+    the interrupt wrote the channel straight back up again;
+  * a bass edge appeared at *exactly* the same offset into every frame,
+    immediately after the music, which is what the "+446" note below was
+    describing;
+  * and the edges were irregular, which is audible as a crackle.
+
+`lda IFR : and IER : and #&40` is the idiom, and it is what
+`vgcplayer_bass.asm` does - `and $fe6e` - which I had read and not copied.
+With it, the pinned edge is gone (offsets now spread across the frame) and
+the jitter within a note falls from about ±3.5% to under **±1%**.
+
+**And a click on every bass note ending.** `bass_update`'s stop path wrote
+the channel's volume as well as stopping the timer - and wrote it as
+attenuation 0, full blast, for one call. It was not only wrong but
+unnecessary: bass_update runs at the END of a call, after the volume writes,
+and on a call where nobody claimed the voice the music has already written
+that channel's real volume.
+
+**`bass_stop` is unconditional.** It used to skip the hardware when
+`bass_running` said the timer was already off, and the flag and the chip got
+out of step.
+
 **The pitch is right and the jitter is small.** Measured on a single note,
 with the timer value read at the same moment: mean 8,576 cycles an edge
 against 8,576 expected - **100.0%**, 116.6 Hz intended and 116.6 Hz

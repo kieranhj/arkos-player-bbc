@@ -1,6 +1,6 @@
 # AKM: what is still open
 
-Two things, deliberately parked. Neither blocks `lib/akmplayer.asm`, which is
+Three things, deliberately parked. None blocks `lib/akmplayer.asm`, which is
 verified frame for frame against `tools/verify/akm_reference.py` on the corpus
 in `tools/verify/akm_known_good.txt`.
 
@@ -98,54 +98,65 @@ if we are overstaying in patterns the error cannot be general.
 
 ---
 
-# 2. The Atari ST and MSX tunes — worth exploring
+# 2. The tunes with a different PSG clock
 
 Eleven corpus songs are excluded from every figure in these documents, and
-they are excluded for a good reason rather than because they fail: **their PSG
-is not the CPC's.**
+they are excluded for a good reason rather than because they fail: **their
+PSG is not the CPC's.**
 
 | machine | PSG clock | `PLY_AKM_HARDWARE_*` |
 |---|--:|---|
-| Amstrad CPC | 1,000,000 Hz | `CPC` — what we target |
-| MSX | 1,789,773 Hz | `MSX` |
+| Amstrad CPC | 1,000,000 Hz | `CPC` - what we target |
 | Spectrum | 1,773,400 Hz | `SPECTRUM` |
+| MSX | 1,789,773 Hz | `MSX` |
 | Pentagon | 1,750,000 Hz | `PENTAGON` |
-| Atari ST | 2,000,000 Hz | (none — Arkos has no ST player) |
+| Atari ST | 2,000,000 Hz | (none - Arkos has no ST player) |
 
 `SongToYm.exe` writes the song's real clock into its YM header, which is how
-`tools/verify/akm_corpus.py` separates them. `akm_known_good.txt` lists them
-with their clocks.
+`tools/verify/akm_corpus.py` separates them; `akm_known_good.txt` lists all
+eleven with their clocks. Nine are at the ST's 2 MHz - eight Doclands tunes
+and *Excellence in Art 2018 - Just add cream* - and two at the Spectrum's
+1,773,400 Hz: *Totta - BaraBadaBastu* and *Totta - Room5 (MSX)*.
 
-The tunes are `Doclands - Buzz-o-Meter (ST)`, `GinFizz`, `Pong Cracktro (ST)`,
-`Slowly But (ST)`, `The Rivals (ST)`, `The Saga (ST)`, `Tiny Things (ST)`,
-`Truly Yours (ST)`, `Your Credits (ST)`, and Totta's `Crawlers (MSX)`,
-`Hardy (MSX)`, `Mellow (MSX)`, `Rezzy (MSX)`, `Room5 (MSX)` — a lot of good
-music, and some of it stresses the player harder than anything in the CPC set:
-**`Totta - Hardy (MSX)` is the only song in the whole corpus that uses
-SoftAndHard**, which is otherwise a path nothing has ever executed.
+**Do not go by the name.** Four other songs with `(MSX)` in the title -
+including *Totta - Hardy* - carry a 1 MHz clock and are in the CPC corpus.
+The YM header is the only thing that says which chip a tune was written for.
 
 ## Why this is interesting rather than a chore
 
 Nothing about the *player* is CPC-specific. The hardware choice is one table:
 twelve octave-0 periods, which `PLY_AKM_PeriodTable` gives for all four
-machines and which the octave halving expands. So an ST or MSX build is
-`lib/akm_periods_st.asm` beside `lib/akm_periods.asm` and a constant — no
+machines and which the octave halving expands. So an ST or Spectrum build is
+`lib/akm_periods_st.asm` beside `lib/akm_periods.asm` and a constant - no
 change to `akmplayer.asm` at all.
 
-Two things make it more than a table swap, and both are the interesting part:
+What makes it more than a table swap is the bass. **The SN76489's floor does
+not move** - its lowest note is 122 Hz whatever the source chip ran at - but
+an ST song's periods mean different *frequencies*, so the share of the tune
+below that floor changes, and the ST tunes are written for a 2 MHz PSG with a
+very different bass register. That is the bass work in
+[`fidelity-plan.md`](fidelity-plan.md) exercised against material it has never
+seen.
 
-- **The SN76489's floor moves.** Its lowest note is 122 Hz regardless, but an
-  ST song's periods mean different *frequencies*, so the share of the tune
-  below the floor changes and the bass voice work in
-  [`fidelity-plan.md`](fidelity-plan.md) is exercised differently. The ST tunes
-  are mostly written for a 2 MHz PSG with a very different bass register.
-- **It would exercise SoftAndHard for the first time**, and the hardware
-  envelope paths much harder than the CPC corpus does.
+Note that `SongToAkm` will happily export any of them and nothing warns that
+the resulting periods suit a different chip. The check is the YM header's
+clock, and `akm_corpus.py` is where that check lives.
 
-Note that `SongToAkm` will happily export any of them; nothing warns that the
-resulting periods suit a different chip. The check is the YM header's clock,
-and `akm_corpus.py` is where that check lives.
+**Order of work**: after the two questions above. It is a genuine extension,
+not a loose end - and it is the cheapest way this library has of reaching a
+much bigger body of music.
 
-**Order of work**: after the 6502 player is proved and on a disc. It is a
-genuine extension, not a loose end — and it is the cheapest way this library
-has of reaching a much bigger body of music.
+---
+
+# 3. SoftAndHard has still never executed
+
+Of the 75 songs in the corpus, **exactly one uses SoftAndHard instruments**:
+`Totta - Hardy (MSX)`, which despite its name runs at 1 MHz and is in the CPC
+corpus. It is also one of the 25 songs with the rendering discrepancy above.
+
+So the only route to exercising that path runs through question 1. Until then
+`lib/akmplayer.asm`'s SoftAndHard branch is written, looks right, and has
+never run - which, as this repo keeps saying, is not the same thing.
+
+`tools/survey_akm.py` is what establishes this; it reports the paths no song
+in the corpus reaches at all.

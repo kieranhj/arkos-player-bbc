@@ -1,305 +1,111 @@
-# arkos-player-bbc — the plan
+# arkos-player-bbc — what is left
 
-**Status: steps 1-7 done, 2026-09-05, and AKM ported on the same day.** THREE players now,
-all verified against Arkos's own player, and all THREE demo discs build and run in jsbeeb. The README carries the results. What is left:
+**Three players, all verified; three demo discs, all booting.** As of
+2026-09-05 the library does what it was built to do. What follows is only the
+work that has not been done.
 
-- **Step 7, the fidelity work**: the envelope mean, one software bass voice and the
-  periodic-noise bass are BUILT and measured — see `docs/fidelity-plan.md`. Noise rate 3 is
-  done, and turned out **not** to be "the tuned noise" or a percussion feature at all: in
-  `ym2sn.py` it is only ever the bass. The real percussion gap was the noise RATE TABLE, which
-  was nearest by neither period nor frequency; fixed. **The volume curve is ym2sn's now**
-  (KC, 2026-09-05), and with it the runtime converter reproduces ym2sn's whole-song offline
-  output EXACTLY on a tune without envelopes — every tone period, tone volume and noise byte
-  over all 9,600 calls of Rhino's Acid Demo, and 97.8/97.4/100% on EDGEA. Still open there:
-  **the drums are 4 to 6 dB too loud**, ym2sn mixing the noise at a share of each open
-  channel's amplitude where we take the loudest whole; the **envelope** (E2/E3), which is all
-  that EDGEA's residual is; and a **second and third bass voice**, which 56 of the 75 songs
-  turn out to want.
-- **Listening**: not done, and it is the point of all of it. `verify.py --snf`, then
-  `tools/sn2wav.py`, against Arkos's own `SongToWav.exe` render of the same tune.
-- **AKM**: step 1 done, step 2 under way. The format is PROVED understood - not just
-  believed - by a second oracle AKL never had: `SongToAkm` annotates every byte it
-  exports, and `tools/verify/akm_source_check.py` holds the reference's decode against
-  that annotation. **74 songs, 48,201 checks, 0 disagreements**, covering the note, the
-  instrument, the wait, all eight effects, every instrument cell's volume and the
-  linker's track pointers, heights and speed changes. Against `SongToYm`, 39 of the 64
-  CPC-clock songs are clean or differ only by AKM's inherent six-note +1.
-  **`lib/akmplayer.asm` is written and is IDENTICAL to the reference on every frame of all
-  39** - `tools/verify/akm_verify_corpus.py` - including all 24,192 calls of Orion Prime L4
-  and all 3,726 of Dead On Time. 2,410 cycles a call averaged over those 39, worst frame 4,859 -
-  but head to head on the SAME tunes AKM is DEARER than AKL by 39-92 cycles a call and
-  400-850 in the worst frame, which is Targhan's warning borne out. Its data is smaller on
-  every tune and its player 549 bytes bigger, so it wins total RAM only on a long one: 538
-  bytes on EDGEA, 302 bytes WORSE on Dead On Time. **Step 3 is done too**:
-  `build/ARKOS-AKM.SSD` boots on a Master 128 in jsbeeb and plays, and two captures of
-  twelve consecutive fields taken 900 fields apart are both found BYTE FOR BYTE in the
-  simulated stream (`tools/verify/find_capture.py`). AKM is finished bar the open items. **Two things are parked in
-  `docs/akm-open-questions.md`**: a rendering discrepancy on the other 25 songs (traced
-  in full, cause narrowed to line timing rather than decode, not explained), and the
-  eleven Atari ST and MSX tunes, which need only a different period table and would
-  exercise SoftAndHard - the one path nothing in the CPC corpus reaches.
-- **edge-beeb**: not yet updated to take `lib/` as a verbatim copy (decision 4).
-- **Targhan**: not yet contacted — to thank him, to confirm the demo-tune choice, and to report
-  the AT2 AKL exporter fault and the AT2/AT3 replay difference.
+- [`docs/history.md`](docs/history.md) — how it got built, and what the plan
+  got wrong on the way
+- [`docs/decisions.md`](docs/decisions.md) — KC's decisions, binding
+- `README.md` — what it is, the measured tables, the API
 
-### What the work changed about the plan below
-
-- **The demo tunes.** The plan said one Targhan song. It is one per player: Targhan's *Dead On
-  Time* on the AKL disc and **Rhino's Acid Demo 21** — KC has the author's permission — on the AKY
-  disc. `_21` is a **two-PSG, six-channel** song, which is why the disc briefly used the earlier
-  single-PSG `_07` instead; `aky_init` handles multiple PSGs now, and `_07` turned out to be a
-  different arrangement missing the opening pattern. `build/ARKOS-ORION.SSD` is a third disc,
-  Targhan's *Orion Prime L4* — 50 Hz, and the hardest bass test of the 72. See `songs/README.md`.
-- **The AKL disc could not use Rhino's tune anyway.** AT2's exporter produces unplayable AKL for
-  it — `docs/format-akl.md`. That is why the two discs do not share a song.
-- **`make_tables.py` grew.** The plan named one missing generator; there were two files and five
-  tables, and recovering the envelope-step derivation (5,120,000 / period, wrapped to 16 bits) took
-  longer than anything else in that step.
-- **AKY needed a header parser.** The AKY binary opens with a header whose length depends on the
-  PSG count, and the player wants the linker that follows it. Getting it wrong does not fail — it
-  plays silence, convincingly.
-- **The replay rate is not in the exported data**, and a song that is not 50 Hz plays at the wrong
-  speed with nothing to show for it. `tools/arkos.py` reads it out of a `SongToYm` header.
-- **`ENV_BASE` was set for EDGEA and wrong for everything else.** The format's own shapes are 8 and
-  10; 12 is an EDGEA-specific compensation. See `docs/format-akl.md`.
-
-Arkos Tracker replays for the BBC Micro, with the AY-3-8912 → SN76489 layer they need in order to
-play on a machine the format was never meant for. Extracted from the Edge Grinder port
-(`BEEB/Repos/edge-beeb`, `MUSIC_AKL`), where the AKL player was built, proved and parked.
-
-Sits beside `vgm-player-bbc` and follows its shape: `lib/`, `docs/`, a demo `.asm` and `.ssd`,
-an MIT `LICENSE`.
-
-**Name**: `arkos-player-bbc`, chosen to match `vgm-player-bbc`. Not final.
+Each item below has an acceptance test. Nothing is believed without one.
 
 ---
 
-## Why this is worth a repo
+## 1. Listening
 
-A tracker replay is a different trade from a register log. The whole 349 seconds of Edge Grinder's
-tune is 23,514 bytes as a `.vgi` and **4,741 bytes as AKL tracker data** — and the AKL replay is the
-cheapest player ever measured on this project, 2,183 cycles a frame against VGI's 3,141.
-
-Nobody has done this on the BBC. Arkos ships 6502 players, but only for AKY and only for machines
-with a real AY (Apple II + Mockingboard, Oric, Atari + SONari). The BBC has an SN76489 and no AY at
-all, so every Arkos player needs a conversion layer that does not exist anywhere else.
-
-## Licences — checked, and clean
-
-- **Arkos Tracker 3 ships `LICENSE.txt`**: MIT, "Copyright (c) 2016-2025 Julien Nevo
-  (contact@julien-nevo.com)". AT2 had no licence file; the terms were only on the website FAQ
-  ("*Of course! The players are MIT-licensed... in any production, free or sold, open or closed
-  source*"). Vendor the AT3 file; archive the FAQ wording beside it for the AT2-era sources.
-- **The 6502 AKY ports carry their own MIT licences**: Apple II / Oric by Arnaud Cocquière
-  (GROUiK/French Touch), 2019. Atari 8-bit by Krzysztof Dudek (xxl), 2021.
-- **The `SongTo*.exe` exporters are not covered by that sentence** — it says *players*. Do not
-  redistribute them. Require an Arkos install and take the path from config, the way
-  `edge-beeb`'s `tools/export_music_akl.py` already does.
-- Crediting Arkos is non-mandatory and we will do it anyway, prominently.
-
-## The formats, measured
-
-All figures are Edge Grinder's tune (`source_cpc/Music/EDGEA.SKS`, 349 s, by Tom & Jerry), exported
-2026-09-05 with AT3 3.7's own tools. AT3 loads `.SKS` directly.
-
-| format | bytes | 6502 player | status |
-|---|--:|---|---|
-| **AKM** | **3,654** | none anywhere | the successor. Z80 only. Same envelope 8/10 limit as AKL |
-| **AKL** | 4,741 | **ours** | **withdrawn from AT3** — see below |
-| AKG | 4,956 | none anywhere | keeps the true envelope 12, so no `ENV_BASE` hack |
-| **AKY** | 13,932 | **upstream, MIT** | a register-block stream; near-zero CPU, large data |
-| VGC / VGI | 15,942 / 23,514 | ships in edge-beeb | for comparison |
-
-### AKL is withdrawn upstream
-
-AT3 3.7 has no `playerLightweight` and no `SongToLightweight.exe`, and the changelog does not
-mention removing them. AKM's own doc says why: *"This player may actually replace Lightweight!"*
-
-Consequences, both to be stated plainly in the README rather than discovered by a user:
-
-- **The AKL export chain requires an Arkos Tracker 2 install, permanently.** AT3 cannot produce the
-  format.
-- The AKL player is nonetheless the proved one, is byte-identical to Arkos's own output over all
-  17,446 frames of the reference tune, and is the smallest-and-cheapest combination measured. It
-  ships as-is; AKM is the documented upgrade path.
-
-## The design: `ay_regs` is the spine
-
-Every player writes the fourteen AY-3-8912 registers into one buffer. `ay2sn.asm` converts that
-buffer to the SN76489, once a frame. Nothing else in the library knows about the BBC.
+**Not done, and it is the point of all of it.** Every check so far compares
+registers; none of them says whether the tune sounds right.
 
 ```
-  aklplayer.asm  ─┐
-  akyplayer.asm  ─┼──►  ay_regs (14 bytes)  ──►  ay2sn.asm  ──►  sn_write  ──►  &FE4F
-  (akmplayer)    ─┘                                                (System VIA)
+python tools/verify/verify.py --player akm --song X.aks --bass 2 --snf build/x.snf
+python tools/sn2wav.py build/x.snf -o build/x.wav
 ```
 
-This is not a retrofit — `aklplayer.asm` was written to that boundary from the start, deliberately,
-so that the replay and the conversion could be measured separately. It is what makes a
-multi-player library cheap, and it is what makes one verification harness serve every player.
+against Arkos's own `SongToWav.exe` render of the same song.
 
-## Layout
+*Accepts when*: KC has listened to all three players side by side with the
+Arkos render, and any difference that matters is either fixed or written down
+in [`docs/fidelity-plan.md`](docs/fidelity-plan.md).
 
-```
-arkos-player-bbc/
-  README.md                 what it is, the format table, cost, API, traps, credits
-  LICENSE                   MIT (ours)
-  LICENSES/
-    arkos-tracker.txt       AT3's LICENSE.txt, verbatim
-    arkos-faq-at2.md        the AT2-era website wording, archived with its URL and date
-    aky-6502-apple-oric.txt Arnaud Cocquière, 2019
-    aky-6502-atari.txt      Krzysztof Dudek, 2021
-    PROVENANCE.md           every vendored file: where from, which Arkos version, which licence
-  lib/
-    ay2sn.asm               the spine: ay_regs -> SN76489, sn_write, silence   (BBC-specific)
-    ay2sn_tables.asm        generated
-    aklplayer.asm           AKL replay, hardware-free                          (ours)
-    aklplayer.h.asm         ZP block, API, ENV_BASE and the config constants
-    akyplayer.asm           AKY replay, hardware-free                          (ported)
-    akyplayer.h.asm
-  example/
-    demo.asm                one disc per player, mute, bass toggle, raster cost band
-    build.py                exports the song, works out the replay rate, builds the disc
-  tools/
-    export_akl.py           SKS/AKS -> .akl at an address     (needs an AT2 install)
-    arkos.py                the replay rate, which the exports do not carry
-    make_tables.py          generates lib/ay2sn_tables.asm and lib/akl_periods.asm
-    survey_tunes.py         what every song an Arkos install ships stresses
-    sn2wav.py               .snf / .vgm -> WAV, for listening
-    verify/
-      akl_reference.py      the Python transcription of PlayerLightweight.asm
-      sim.asm               the real lib/ sources with a ZP block and an ORG
-      verify.py             build, simulate, diff against the oracle, report cost
-  reference/                vendored, unmodified, for study
-    PlayerLightweight.asm             AT2, Z80 — the ancestor of lib/aklplayer.asm
-    SongLightweightExportFormat.md    AT2 — the AKL format spec
-    PlayerAky.asm                     AT3, Atari MADS — the ancestor of lib/akyplayer.asm
-    PlayerAKY_6502.a                  AT3, Apple/Oric ACME — the other 6502 AKY port
-    AKY.md, AKM.md, AKG.md            AT3 format specs
-  songs/                    the demo tune, its exports, and its licence note
-  docs/
-    format-akl.md           what AKL is, and the three conventions that had to be understood
-    format-aky.md
-    verification.md         the oracle chain, and why 11 ch2-period diffs is a PASS
-    cost.md                 the measured tables, simulated and in-game
-    ay-to-sn.md             the conversion, and what a per-frame converter cannot do
-    porting.md              taking a replay to a non-BBC 6502, or to a real AY
-```
+## 2. The fidelity work still open
 
-## Steps
+All of it lives in `lib/ay2sn.asm`, so it benefits every player at once. The
+replays are already exact; what is wrong is the conversion to a chip the music
+was not written for. [`docs/fidelity-plan.md`](docs/fidelity-plan.md) has the
+measurements and the options.
 
-Each step has an acceptance test. Nothing is believed without one.
+- **The drums are 4–6 dB too loud.** `ym2sn.py` mixes the noise at a share of
+  each open channel's amplitude; we take the loudest whole. Independent of any
+  player.
+- **The hardware envelope** (E2/E3). It is all that EDGEA's residual is.
+- **A second and third bass voice.** There is one, and it is sticky. Over the
+  75-song corpus **56 songs want more than one**: 30 want three simultaneous
+  voices and 26 want two.
 
-### 1. Repo, licences, vendored reference
+*Accepts when*: each is either built and measured against `ym2sn.py` frame by
+frame, or recorded in `fidelity-plan.md` as a decision not to.
 
-`git init`, MIT `LICENSE`, `LICENSES/` and `PROVENANCE.md` complete, `reference/` populated
-unmodified. Vendor the AT2 Lightweight sources **especially** — AT3 has deleted them and nowhere
-else will keep them.
+## 3. The three AKM questions
 
-*Accepts when*: every file in `reference/` and `lib/` has a row in `PROVENANCE.md` naming its
-origin, its Arkos version and its licence.
+All parked deliberately, all written up with reproduction steps in
+[`docs/akm-open-questions.md`](docs/akm-open-questions.md). Neither blocks the
+player, which is verified on the 39 songs in
+`tools/verify/akm_known_good.txt`.
 
-### 2. Lift AKL and `ay2sn`
+- **The rendering discrepancy**, 25 of the 64 CPC-clock corpus songs. Not a
+  decode fault — that is ruled out by 48,201 checks against Arkos's own
+  annotation. The two players disagree about which instrument cell is heard on
+  which frame. Traced to the bottom on one song and not explained.
+- **The eleven tunes with a different PSG clock** — nine at the Atari ST's
+  2 MHz, two at the Spectrum's 1,773,400 Hz. Nothing in the player is
+  CPC-specific: it is a second generated period table and a constant. It would
+  reach a much bigger body of music, and exercise the bass work against
+  material it has never seen.
+- **SoftAndHard has still never executed.** Exactly one corpus song uses it,
+  `Totta - Hardy (MSX)` — which runs at 1 MHz despite its name, so it is in
+  the CPC corpus, and is one of the 25 above. The only route to testing that
+  path runs through the first question.
 
-Copy `src/aklplayer.asm` and `src/ay2sn.asm` from edge-beeb. Split the 22-byte zero-page block out
-of edge-beeb's `main.asm` into `lib/aklplayer.h.asm` — the pattern `vgm-player-bbc` already uses for
-`vgiplayer.h.asm`. Make `ENV_BASE` and the song address parameters of the header rather than
-constants buried in the body. Fix the `INCLUDE` paths.
+*Accepts when*: the discrepancy is explained (or referred upstream); an ST
+build verifies on the ST tunes the way the CPC build does on its 39; and
+SoftAndHard has run.
 
-*Accepts when*: `python tools/verify/verify.py --player akl` prints, in this repo,
-`IDENTICAL on every frame` and `audible mismatches: {'ch2 period': 11}` over all 17,446 frames.
-That eleven is the correct answer, not a defect — it is Arkos's own documented ±1 in the
-volume/pitch effects between the PC side and the Z80 player.
+## 4. edge-beeb takes `lib/` as a verbatim copy
 
-### 3. `make_tables.py`
+Decision 4, not yet done. edge-beeb's `MUSIC_AKL` build still carries its own
+copy of the player; this library is upstream and edge-beeb should never edit
+it — the same treatment edge-beeb's own `lib/vgiplayer.asm` already gets.
 
-`src/data/akl_ay2sn_tables.asm` is committed to edge-beeb with **no generator anywhere in the
-repo**: the 32-entry volume LUT, the envelope shape table and the 256-entry reciprocal table cannot
-currently be reproduced or re-derived. A library cannot ship that.
+*Accepts when*: edge-beeb's `lib/aklplayer.asm` is byte-identical to this
+repo's, its build still assembles, and `PROVENANCE.md` there says where it
+came from.
 
-*Accepts when*: `python tools/make_tables.py` regenerates `lib/ay2sn_tables.asm` byte for byte
-identical to edge-beeb's committed copy.
+## 5. Write to Targhan
 
-### 4. Port AKY
+Not done. There is more to say now than when it was first noted:
 
-Take **xxl's Atari version** (`PlayerAky.asm`, 658 lines, MADS), not the Apple/Oric one (1,306
-lines, ACME) — it is half the size and its entire hardware coupling is two constants and one
-register write. Convert MADS syntax to BeebASM, and redirect the register writes into `ay_regs`
-instead of a chip, then call `ay2sn` once at the end of the frame.
+- to thank him — none of this exists without Arkos Tracker and his format
+  documentation;
+- to confirm the demo-tune choice (*Dead On Time*, *Crtc*) is welcome;
+- **AT2's AKL exporter emits data no player can play** — tracks referencing
+  arpeggio table 29 when ten were written ([`docs/format-akl.md`](docs/format-akl.md));
+- **AT2's and AT3's `SongToYm.exe` disagree** about the same song, by far more
+  than a rounding tolerance ([`docs/verification.md`](docs/verification.md));
+- **Arkos Tracker 3 ships a V0 AKM player and a V1 AKM exporter**, and the
+  exporter's output contains instrument data AT3's own replay does not play
+  ([`docs/format-akm.md`](docs/format-akm.md)). This is the one he will most
+  want to know.
 
-*Accepts when*: `python tools/verify/verify.py --player aky` matches `SongToYm.exe`'s output for
-the same song, on the same terms as AKL — audibly identical, with every difference explained.
+*Accepts when*: sent.
 
-Note the trade: AKY does so little work per frame that `ay2sn` becomes the dominant cost. That
-makes it the stress test for the conversion layer and a genuinely useful row in `cost.md`.
+---
 
-### 5. The demo disc
+## Not planned, but the obvious next thing
 
-A plain SSD — no ZX0, no loader, player in main RAM, its own VSync IRQ. Both players selectable.
-Keys for mute and pause. A palette-write raster bar so the cost is **visible** on screen.
-
-The tune is one of **Targhan's own songs bundled with the tracker** — `Dead On Time - Ingame` or
-`Midline Process - Molusk`, the two Arkos itself uses as the Lightweight player's test music. That
-settles the redistribution question, and it exercises player paths EDGEA never touched (see Traps).
-Confirm with Targhan in the same mail as the licence courtesy.
-
-*Accepts when*: it boots in jsbeeb, plays, and the raster bar's height matches the simulated cost.
-
-### 6. README and docs
-
-The format table above, the measured costs, the API, the credits, and the traps stated loudly
-rather than buried.
-
-### 7. Then the fidelity work
-
-Now that it lives in `ay2sn`, both known gaps benefit every player at once:
-
-1. **Noise rate 3 — the tuned noise.** `ym2sn.py` clocks the SN's noise from tone generator 3 on
-   1,701 of its frames, which is how it gets a pitched drum and a bass out of the noise channel.
-   `ay2sn.asm` never emits rate 3 at all. Largest remaining difference on percussion.
-2. **Average the envelope across the frame instead of sampling it once.** It drives a channel's
-   volume on 33% of the tune, every envelope runs at 1.2–2.9 complete cycles per frame, and
-   `ym2sn` low-passes where we take one sample — which is why envelope frames agree on only 3.6%
-   of tone periods. A closed-form average of a saw over a window; a couple of hundred cycles.
-
-Then render everything to WAV side by side and listen.
-
-## Decisions taken (KC, 2026-09-05)
-
-1. **Scope**: replay + AY→SN, BBC-framed — but `aklplayer.asm`/`akyplayer.asm` stay strictly
-   hardware-free with a documented `ay_regs` boundary, so the replay alone travels to an Oric or an
-   Apple II.
-2. **Demo tune**: an Arkos-bundled Targhan song, not EDGEA (third-party, and it exercises the
-   least).
-3. **Timing**: extract now, finish the fidelity work here rather than in edge-beeb.
-4. **edge-beeb's copy**: becomes a verbatim copy in its `lib/`, the same treatment as
-   `lib/vgiplayer.asm`. The library is upstream; edge-beeb never edits it.
-5. **AKM**: noted now, ported later. v1 is AKL + AKY. AKM is the documented upgrade path and the
-   obvious next player — 3,654 bytes and upstream-supported, but a second from-scratch port of a
-   Z80 replay, i.e. the same size of job AKL was.
-6. **Edge Grinder**: stays on VGI. `MUSIC_AKL` remains the parked comparison build and decision 40
-   stays open. Fidelity work here can feed back if and when KC's ear says so.
-
-## Traps, carried over from edge-beeb
-
-- **`ENV_BASE` lives in two places** — the player and `akl_reference.py` — and they must agree, or
-  the harness will "prove" the player correct against a reference carrying the same bug. It is 12
-  because AKL encodes only envelope 8 or 0xa and EDGEA is 12 throughout. **A different tune needs a
-  different value, or AKG, which carries the shape properly.**
-- **The song is exported at the address it will be played from.** Both formats hold absolute
-  pointers. Getting it wrong fails silently at run time; nothing asserts the address, only the size.
-- **Paths nothing has ever called are not tested paths.** In the AKL player, arpeggio tables, pitch
-  tables, soft-and-hard instruments and effects 0, 1, 2, 5 and 6 have never executed, because EDGEA
-  uses none of them. They are written and they look right; that is not the same thing. Choosing a
-  Targhan song for the demo is partly aimed at this — `export_akl.py --check` reports when a tune
-  strays into one.
-- **The offline chain is not a per-frame register mapping.** `ym2sn.py` does whole-song analysis —
-  a priority bass channel, sub-122 Hz tones synthesised with periodic noise, the hardware envelope
-  averaged per frame. A runtime converter reproduces neither. This library gives you the tune
-  **re-voiced for the SN76489**, not the same tune smaller, and the README must say so.
-
-## Prior art, to be honest about in the README
-
-Arkos ships a 6502 AKY player already, for Apple II + Mockingboard, Oric, and Atari + SONari — all
-machines with a genuine AY. There is no official 6502 player for AKL, AKM or AKG, and no AY→SN76489
-layer anywhere. That gap is what this repo is.
+**AKG has no 6502 player anywhere**, and it is the only Arkos format left
+without one. It carries the true envelope shape, so it needs no `ENV_BASE`
+compensation at all — which would close the one fidelity gap AKL and AKM
+share. [`docs/porting.md`](docs/porting.md) is the route, and it says what to
+do differently: build the annotation oracle first, not last.

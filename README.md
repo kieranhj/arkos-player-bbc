@@ -363,10 +363,16 @@ So:
 - `reference/` keeps AT2's Lightweight sources and format spec, because
   nowhere else will.
 
-AKL is nonetheless the proved player, the smallest combination measured, and
-what Edge Grinder's `MUSIC_AKL` build uses. It is not going anywhere. But
-**AKM is the format to port next**, and the README will say so until someone
-does.
+AKL is nonetheless a proved player and what Edge Grinder's `MUSIC_AKL` build
+uses, and it is not going anywhere — on a short tune it still beats AKM on
+both RAM and cycles. But **it is the format with no future**, so anything new
+should start with AKM, which needs no AT2 install and whose data is smaller on
+every tune measured.
+
+**AKG is now the only Arkos format with no 6502 player anywhere.** It carries
+the true envelope shape, so it would need no `ENV_BASE` compensation at all —
+which is the one fidelity gap AKL and AKM share.
+[`docs/porting.md`](docs/porting.md) is the route.
 
 ## What is verified, and against what
 
@@ -436,14 +442,29 @@ also Simon's.
 
 ## Documentation
 
-- [`docs/format-akl.md`](docs/format-akl.md) — the format, the three
-  conventions that had to be understood, and how the exporter can lie
+**The formats**
+
+- [`docs/format-akl.md`](docs/format-akl.md) — AKL, the three conventions that
+  had to be understood, and how its exporter can lie
+- [`docs/format-akm.md`](docs/format-akm.md) — AKM, why it needs its own period
+  table, and the V0-player/V1-exporter split in Arkos Tracker 3
+
+**The conversion, and how any of it is known to work**
+
 - [`docs/ay-to-sn.md`](docs/ay-to-sn.md) — the conversion, and what a
   per-frame converter cannot do
 - [`docs/verification.md`](docs/verification.md) — the oracle chain and how to
   re-run it
-- [`docs/fidelity-plan.md`](docs/fidelity-plan.md) — the envelope and the
-  two bass voices, what each cost, and the one question still open
-- [`docs/porting.md`](docs/porting.md) — taking a replay to another 6502, or
-  to a real AY
-- [`PLAN.md`](PLAN.md) — where this came from and what is left
+- [`docs/fidelity-plan.md`](docs/fidelity-plan.md) — the envelope and the two
+  bass voices, what each cost, and what is still open
+
+**Where it goes next**
+
+- [`PLAN.md`](PLAN.md) — what is left to do, and nothing else
+- [`docs/akm-open-questions.md`](docs/akm-open-questions.md) — the three AKM
+  questions, parked with reproduction steps
+- [`docs/porting.md`](docs/porting.md) — taking a replay to another 6502, to a
+  real AY, or porting the one format still without a player
+- [`docs/decisions.md`](docs/decisions.md) — KC's decisions, binding
+- [`docs/history.md`](docs/history.md) — how it got built, and what the plan
+  got wrong on the way

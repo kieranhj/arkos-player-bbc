@@ -1,8 +1,10 @@
 # Improving the fidelity: the envelope and the bass
 
 **E1 and B2a are BUILT, 2026-09-05.** Both are in `lib/ay2sn.asm` and both
-run on the demo discs. What was found doing it is at the bottom, under
-"What the implementation turned up". E2/E3 and B1/B2b/B2c remain options.
+run on the demo discs. What was found doing it is under "What the
+implementation turned up". E2/E3 and B1/B2b/B2c remain options, and
+**section 3 is new**: KC has allowed light preprocessing of a song at export,
+which changes how the bass channel should be chosen.
 
 **Planned 2026-09-05.** Everything below lives in
 `lib/ay2sn.asm`, so it benefits every player in the library at once. The
@@ -177,6 +179,88 @@ right.
 
 ---
 
+## 3. Preprocessing the tune (KC, 2026-09-05)
+
+**Light preprocessing of a song is allowed.** The player does not have to
+take any AK-anything file and work everything out at run time; it is fine to decide
+things offline, at export, the way `ym2sn.py` does. That permission changes
+what the bass can be.
+
+### What the runtime picker costs, and why it exists
+
+`bass_pick` scans the three channels **every call** and hands the one voice
+to a claimant, preferring whoever had it last. It exists only because the
+player is choosing with no lookahead: pick the lowest-numbered claimant and
+the voice thrashes — on Dead On Time the lowest one below the floor changes
+on 17.7% of bass calls, median run one call. The stickiness is a patch over
+a decision that should never have been made at run time.
+
+It costs about 80 cycles a call, one byte of state, and a rule someone has
+to understand.
+
+### What a priority channel would buy
+
+`ym2sn` picks **one priority bass channel per song**, the one with the most
+low notes, and routes only that channel's low tones. Done at export, the
+whole of `bass_pick` disappears: no scan, no stickiness, no thrash, and the
+choice can be made on the music rather than on channel numbers.
+
+How well one fixed channel does, measured over the frames where any channel
+is below the floor:
+
+| tune | bass frames | best fixed channel covers |
+|---|--:|--:|
+| Rhino – Acid Demo 21 | 4,623 | **ch0, 99%** |
+| Targhan – Dead On Time | 2,353 | **ch0, 91%** |
+| EDGEA | 10,618 | ch0, **52%** (ch1 50%) |
+| Targhan – Orion Prime L4 | 22,709 | ch2, **60%** (ch1 59%, ch0 58%) |
+
+**So it depends entirely on the tune.** Where one instrument owns the bass a
+fixed channel is as good as anything. Where the bass line moves between
+channels — EDGEA and Orion Prime both spread it across all three — a fixed
+channel abandons nearly half of it to the octave shift, which is *worse* than
+the sticky runtime picker, because that at least follows the note wherever it
+goes.
+
+### The options
+
+| | what is decided offline | data | runtime |
+|---|---|---|---|
+| **P1** | one priority channel for the whole song | 1 byte | none — delete `bass_pick` |
+| **P2** | the priority channel **per pattern**, from the linker's own pattern list | ~1 byte a pattern | a lookup when the pattern changes |
+| **P3** | per note: mark every note that should be software bass | a bitmap, or a parallel list | a test per note |
+
+**A constraint the reference implementations do not have**: `ym2sn` owns its
+output format, so it flags a software-bass note *inside* the stream — divide
+the period by four, store it in ten bits, set bit 6 of the high byte, and
+`vgcplayer_bass.asm` decodes it. We cannot. We replay **Arkos's** formats,
+byte for byte, against Arkos's own player as the oracle; annotating the
+stream would fork the format and cost us the thing that makes this library
+trustworthy. So anything decided offline has to arrive as a **side-car** —
+a small blob beside the song, not inside it.
+
+That is cheap for P1 (one byte) and P2 (one byte a pattern, and the linker
+already tells the player when a pattern starts). P3's side-car is the
+expensive one, because "per note" in a tracker format means per cell of every
+track, and the player would have to count cells to index it.
+
+### Recommendation
+
+**P2, and keep a runtime fallback.** One byte per pattern is nothing, the
+pattern boundary is already a place where the player does work, and it tracks
+a bass line that moves — which is the case a fixed channel handles worst and
+which two of our four tunes are. Where a song really does keep its bass on
+one channel, P2 degenerates to P1 for free.
+
+Keep `bass_pick` as what happens when there is no side-car, so the library
+still plays a bare `.akl` or `.aky` sensibly; it is the difference between a
+library and a tool for one pipeline.
+
+**This does not remove the need for more voices.** 56 of the 75 songs
+surveyed want two or three simultaneous bass voices, and no amount of
+choosing better fixes a frame that genuinely has two low notes in it. P2 and
+B2b are independent, and B2b is the bigger win on that evidence.
+
 ## Order of work
 
 1. ~~**E1**, the envelope constant.~~ **Done.**
@@ -184,7 +268,8 @@ right.
    discs.
 3. Re-measure and **listen**: `verify.py --snf` then `tools/sn2wav.py`,
    against Arkos's own `SongToWav.exe` render of the same tune. **Not done.**
-4. Only then consider B2b and E3.
+4. Only then consider B2b (a second bass voice), P2 (choosing the bass
+   channel offline, per pattern) and E3.
 
 ## What the implementation turned up
 

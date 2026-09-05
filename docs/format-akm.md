@@ -1,0 +1,195 @@
+# AKM, and how to get a song into it
+
+AKM — Arkos's "minimalist" format — is the successor to AKL: patterns,
+instruments and an order list, encoded harder. It is the smallest Arkos
+format measured here, 3,654 bytes for Edge Grinder's 349-second tune against
+AKL's 4,741, and Targhan's own player header says *"This player may actually
+replace Lightweight!"*.
+
+`reference/AKM.md` is the format spec and `reference/PlayerAkm_z80.asm` is
+Arkos's Z80 player, both vendored. Read those before this.
+
+**This document describes work in progress.** `tools/verify/akm_reference.py`
+exists and is proved on most of the corpus; `lib/akmplayer.asm` does not exist
+yet. What is written down here is what has been measured, and what has not.
+
+## Unlike AKL, it needs no Arkos Tracker 2
+
+AKM is an Arkos Tracker 3 format and `SongToAkm.exe` ships with the current
+tracker. That removes AKL's permanent dependency on an AT2 install — which is
+one of the two reasons to prefer it. The other is size.
+
+But see the version trap below before assuming AT3's exporter is the one you
+want.
+
+## AKM DERIVES ITS PERIODS, AND ARKOS'S OWN TABLE DISAGREES WITH IT
+
+This is the single most important thing to know about the format, and it is
+not in the spec.
+
+AKL ships a full 128-note period table. **AKM ships twelve entries — octave 0
+— and the player derives every other octave at run time**, halving with
+`srl h : rr l` and rounding if the last bit shifted out was set:
+
+```
+        ld a,b
+        or a
+        jr z,PLY_AKM_FindOctave_OctaveShiftLoop_Finished
+PLY_AKM_FindOctave_OctaveShiftLoop:
+        srl h
+        rr l
+        djnz PLY_AKM_FindOctave_OctaveShiftLoop
+        jr nc,PLY_AKM_FindOctave_Finished
+        inc hl
+```
+
+That is not the same function as Arkos's true note table. On the notes where
+the halving lands exactly on `.5`, the two round opposite ways:
+
+| note | AKM's halving | Arkos's table |
+|--:|--:|--:|
+| 18 | 1352 | 1351 |
+| 21 | 1137 | 1136 |
+| 23 | 1013 | 1012 |
+| 28 | 759 | 758 |
+| 49 | 226 | 225 |
+| 56 | 151 | 150 |
+
+Six notes, and AKM is **+1 on every one**. Measured 2026-09-05 against
+`lib/akl_periods.asm`, which is Arkos's own table extracted from
+`PlayerLightweight.asm`.
+
+Two consequences:
+
+- **`lib/akl_periods.asm` cannot be reused for AKM.** It is the true table,
+  and a player using it would disagree with the player it is a port of. The
+  BBC player generates its own table, `lib/akm_periods.asm`, from AKM's
+  halving — so the table is provably the algorithm it replaces (decision:
+  KC, 2026-09-05, "just build the table").
+- **A +1 period difference against `SongToYm.exe` on those six notes is
+  correct, not a defect** — the AKM analogue of AKL's documented eleven. Any
+  other period difference is a regression.
+
+## The version trap: AT3 ships a V0 player and a V1 exporter
+
+`SongToAkm.exe` writes the format version into the first line of its source
+export. Measured 2026-09-05:
+
+| | writes |
+|---|---|
+| Arkos Tracker 3's `SongToAkm.exe` | `format V1` |
+| Arkos Tracker 2's `SongToAkm.exe` | `format V0` |
+| **AT3's own `players/playerAkm/sources/z80/PlayerAkm.asm`** | **`(format V0)`** |
+
+So the player Arkos Tracker 3 ships cannot be the intended reader of what
+Arkos Tracker 3's exporter produces, and `reference/AKM.md` — vendored from
+that player's own `doc/` directory — documents V0.
+
+It shows. EDGEA's instrument 9 is, in AT2's V0 export and in AKL, twelve
+`0x52` cells then four arpeggio cells then the end marker. AT3's V1 export
+adds a thirteenth `0x52` before the end marker, and **AT3's own replay does
+not play it**: `SongToYm.exe` silences the channel at frame 96 where a
+literal reading of the V1 data plays one more instrument cell and silences at
+frame 102. Fourteen of EDGEA's seventeen instruments differ in length between
+the two exporters, and not always in the same direction.
+
+With the V0 export, EDGEA verifies clean. With the V1 export it does not.
+
+**This does not mean V0 is the answer.** Over 64 CPC-clock corpus songs, 42
+verify clean through the V1 exporter and 40 through V0, and AT2 refuses to
+export several songs at all (it cannot load an AT3-saved `.aks`). The version
+split is real, it explains EDGEA, and it is not what is causing most of the
+remaining differences. Say which exporter a figure came from, the way this
+repo already says which oracle a number came from.
+
+## What is verified so far
+
+`tools/verify/akm_reference.py` against `SongToYm.exe`, 2026-09-05, over
+every CPC-clock song in the corpus (11 Atari ST and MSX songs excluded: they
+run their PSG at 2 MHz and 1.789 MHz and this player targets the CPC's 1 MHz
+path deliberately, so the period table is knowingly wrong for them):
+
+| | |
+|---|--:|
+| CPC-clock songs tested | 64 |
+| verify clean, or differ only by the six-note +1 | **42** |
+| differ in ways not yet explained | 22 |
+
+Two of the clean ones are worth naming because of their length: **Targhan's
+*Dead On Time*, 3,726 frames, and *Orion Prime L4*, 24,192 frames — the only
+difference from Arkos's own player on either is the +1 above. Nothing else
+differs at all.**
+
+The 22 that do not verify are concentrated in native `.aks` songs rather than
+`.sks` ones:
+
+| folder | clean or +1-only | differs |
+|---|--:|--:|
+| `songs/STarKos` (`.sks`) | 39 | 7 |
+| `songs/ArkosTracker2` (`.aks`) | 2 | 8 |
+| `songs/ArkosTracker3` (`.aks`) | 1 | 4 |
+
+StarKos is the older and poorer format and cannot express what a native
+Arkos song can, so `.sks` tunes pass largely because they never reach the
+paths that are wrong. The residue is concentrated in tunes using the
+**arpeggio table, the pitch table, the reset effect and multi-effect
+chains** — which are, not coincidentally, among the paths AKL has never
+executed either.
+
+**So step 1 is not finished.** It accepts when every audible mismatch is
+none or explained, and 22 songs are neither.
+
+## Which songs reach which paths
+
+`tools/survey_akm.py` exports every song in the corpus with
+`SongToAkm --exportPlayerConfig`, which is Arkos's own statement of what a
+tune uses, and reports what each one reaches. It writes
+`build/akm-coverage.md`.
+
+The result that matters: **`Targhan - Crtc.aks` reaches 21 of the player's 26
+paths**, including the pitch table and two of the force-speed effects — three
+of the five paths AKL has still never executed. It is the demo tune for that
+reason and no other.
+
+Four tunes between them reach everything the 75-song corpus reaches:
+
+| tune | adds |
+|---|---|
+| `Targhan - Crtc.aks` | 21 paths, including the arpeggio and pitch tables, reset, both pitch directions, hardware sounds, SoftToHard, transpositions, speed tracks |
+| `Totta - Hardy (MSX).aks` | SoftAndHard, and its arpeggio and pitch — the corpus's only SoftAndHard song |
+| `Targhan - Midline Process - Carpet.sks` | SoftToHard with software pitch |
+| `Playing with effects.aks` | Force Pitch Table Speed |
+
+## What is NOT ported
+
+`PlayerAkm_SoundEffects.asm` is vendored for completeness and is not ported.
+`PLY_AKM_RT_WaitLong`, `PLY_AKM_RT_WaitShort` and `PLY_AKM_RT_CellRead` in
+the Z80 player are **dead code** — nothing anywhere jumps to them, in either
+Arkos source file — and are Lightweight leftovers. They are not ported and
+their absence is not a gap.
+
+## Traps
+
+- **The song is exported at the address it will be played from.** AKM holds
+  absolute pointers. Nothing checks this at run time.
+- **Run `--check` before the simulator, always.** AT2's AKL exporter is known
+  to emit data whose pointers leave the song, and fed that a 6502 replay does
+  not fail, it *spins*. AT2's AKM exporter does the same on
+  `Targhan - Crtc.aks`: `akm_reference.py` raises in milliseconds where a
+  py65 harness would sit there. `tools/export_akm.py --check` replays the
+  export in the Python reference first.
+- **Target the CPC path.** `PLY_AKM_HARDWARE_CPC`, a 1 MHz PSG. The MSX,
+  Spectrum and Pentagon period tables are for different clocks and are wrong
+  for us — and a song *authored* on one of those machines carries its own
+  clock, which `SongToYm`'s header states. Eleven corpus songs are in that
+  class and are excluded from the figures above rather than counted as
+  failures.
+- **AKM shares AKL's envelope limitation** — shapes 8 and 0xa only — so it
+  needs the same `ENV_BASE` treatment, and `tools/arkos.py`'s
+  `envelope_base()` serves it unchanged. A tune whose real envelope is
+  neither, and which is not one shifted pair either, cannot be represented at
+  all: `arkos.py` warns, and `env shape` mismatches on those tunes are
+  expected.
+- **A path nothing has ever called is not a tested path.** Five of AKL's
+  seven effects have still never executed. `tools/survey_akm.py` exists so
+  that this port can say plainly which AKM paths its testing reached.

@@ -27,9 +27,12 @@ and the AKM one is not built yet. The README carries the results. What is left:
   CPC-clock songs are clean or differ only by AKM's inherent six-note +1.
   **`lib/akmplayer.asm` is written and is IDENTICAL to the reference on every frame of all
   39** - `tools/verify/akm_verify_corpus.py` - including all 24,192 calls of Orion Prime L4
-  and all 3,726 of Dead On Time. 2,410 cycles a call on average, worst frame 4,859; AKL is
-  2,689 on the same terms, so AKM is slightly CHEAPER on a 6502 despite Targhan's warning
-  that it is much slower on a Z80. What is left is the disc (step 3) and jsbeeb. **Two things are parked in
+  and all 3,726 of Dead On Time. 2,410 cycles a call averaged over those 39, worst frame 4,859 -
+  but head to head on the SAME tunes AKM is DEARER than AKL by 39-92 cycles a call and
+  400-850 in the worst frame, which is Targhan's warning borne out. Its data is smaller on
+  every tune and its player 549 bytes bigger, so it wins total RAM only on a long one: 538
+  bytes on EDGEA, 302 bytes WORSE on Dead On Time. What is left is the disc (step 3) and
+  jsbeeb. **Two things are parked in
   `docs/akm-open-questions.md`**: a rendering discrepancy on the other 25 songs (traced
   in full, cause narrowed to line timing rather than decode, not explained), and the
   eleven Atari ST and MSX tunes, which need only a different period table and would

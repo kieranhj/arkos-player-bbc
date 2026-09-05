@@ -134,8 +134,8 @@ whole cost of having the music in the machine.
 | format | tune | + player & workspace | = RAM | mean | max |
 |---|--:|--:|--:|--:|--:|
 | AKL | 5,270 | — | — | — | — |
-| **AKY** | 11,713 | 2,660 | **14,373** | 2,222 | 2,732 |
-| AKM | 7,092 | no player | — | — | — |
+| **AKY** | 11,713 | 2,677 | **14,390** | 2,228 | 2,739 |
+| **AKM** | 7,092 | 4,161 | **11,253** | 2,657 | 4,734 |
 | AKG | 8,674 | no player | — | — | — |
 | **VGC** | 7,460 | 2,816 | **10,276** | 1,711 | **5,321** |
 | **VGI** | 10,069 | 3,584 | **13,653** | 1,551 | 2,652 |
@@ -149,9 +149,9 @@ AKY disc uses, and why.
 
 | format | tune | + player & workspace | = RAM | mean | max |
 |---|--:|--:|--:|--:|--:|
-| **AKL** | **1,988** | 3,595 | **5,583** | 2,679 | 3,682 |
-| **AKY** | 5,686 | 2,660 | 8,346 | 2,337 | 2,764 |
-| AKM | 1,741 | no player | — | — | — |
+| **AKL** | **1,988** | 3,612 | **5,600** | 2,683 | 3,686 |
+| **AKY** | 5,686 | 2,677 | 8,363 | 2,343 | 2,771 |
+| **AKM** | **1,741** | 4,161 | 5,902 | 2,775 | 4,267 |
 | AKG | 2,074 | no player | — | — | — |
 | **VGC** | 5,950 | 2,816 | 8,766 | 2,034 | **5,430** |
 | **VGI** | 6,460 | 3,584 | 10,044 | 1,578 | 2,726 |
@@ -161,9 +161,9 @@ AKY disc uses, and why.
 
 | format | tune | + player & workspace | = RAM | mean | max |
 |---|--:|--:|--:|--:|--:|
-| **AKL** | **4,741** | 3,595 | **8,336** | 2,689 | 3,870 |
-| **AKY** | 13,932 | 2,660 | 16,592 | 2,265 | 2,850 |
-| AKM | 3,654 | no player | — | — | — |
+| **AKL** | 4,741 | 3,612 | 8,353 | 2,693 | 3,873 |
+| **AKY** | 13,932 | 2,677 | 16,609 | 2,270 | 2,854 |
+| **AKM** | **3,654** | 4,161 | **7,815** | 2,746 | 4,463 |
 | AKG | 4,956 | no player | — | — | — |
 | **VGC** | 14,702 | 2,816 | 17,518 | 1,485 | **5,546** |
 | **VGI** | 22,292 | 3,584 | 25,876 | 1,566 | 3,004 |
@@ -173,9 +173,9 @@ AKY disc uses, and why.
 
 | format | tune | + player & workspace | = RAM | mean | max |
 |---|--:|--:|--:|--:|--:|
-| **AKL** | **2,320** | 3,595 | **5,915** | 2,709 | 3,886 |
-| **AKY** | 5,741 | 2,660 | 8,401 | 2,361 | 2,948 |
-| AKM | 1,755 | no player | — | — | — |
+| **AKL** | 2,320 | 3,612 | 5,932 | 2,712 | 3,889 |
+| **AKY** | 5,741 | 2,677 | 8,418 | 2,366 | 2,953 |
+| **AKM** | **1,755** | 4,161 | **5,916** | 2,751 | 4,541 |
 | AKG | 2,368 | no player | — | — | — |
 | **VGC** | 5,841 | 2,816 | 8,657 | 1,002 | **5,601** |
 | **VGI** | 10,530 | 3,584 | 14,114 | 1,509 | 2,863 |
@@ -198,22 +198,28 @@ in between and flat, AKY's worst frame (2,732–2,948) beating AKL's
 (3,682–3,886) because AKY does almost nothing per frame and `ay2sn` becomes
 the whole cost.
 
-**AKM is the smallest data of all, and now it has a player.** It beats AKL on
-every tune — 3,654 bytes against 4,741 on Edge Grinder — and
-`lib/akmplayer.asm` is the only 6502 AKM replay in existence. On a 6502 it
-costs about what AKL does (2,410 cycles a call against AKL's 2,689, averaged
-over 39 songs), which is not what Targhan's own player header would lead you
-to expect: it warns that AKM is *"much slower than the generic one or the AKY
-player"*, and on a Z80 it presumably is. Most of what AKM added over
-Lightweight is decoding cleverness in the TRACK, which runs once a line; the
-per-frame path is much the same work.
+**AKM is the smallest data of all, and now it has a player** —
+`lib/akmplayer.asm`, the only 6502 AKM replay in existence. Its tune data
+beats AKL on every song here: 3,654 bytes against 4,741 on Edge Grinder,
+1,741 against 1,988 on Dead On Time.
 
-**But its code is bigger.** 4,161 bytes of player and converter against AKL's
-3,612, most of the difference being a period table with 256 entries where
-AKL's has 128. So AKM wins on total RAM by 538 bytes on Edge Grinder's tune,
-and by more the longer the tune, since only the data grows — but on a short
-tune AKL can still win. It is smaller data and bigger code, not simply
-"AKL but smaller". See [`docs/format-akm.md`](docs/format-akm.md).
+**It does not follow that AKM is the better choice, and the tables above say
+so.** Its player is 4,161 bytes against AKL's 3,612 — most of the difference
+a period table with 256 entries where AKL's has 128, because AKM's note index
+is 8-bit and wraps. So on **total** RAM AKM wins only where the tune is long
+enough to pay for that: 538 bytes better on Edge Grinder's 349 seconds, 16
+bytes better on Orion's 484, and 302 bytes **worse** on Dead On Time's 149.
+
+**And it is dearer per call, exactly as Targhan says it should be.** His
+player header warns AKM is *"much slower than the generic one or the AKY
+player"*; on a 6502 it costs 39–92 cycles a call more than AKL, and its worst
+frame is 400–850 cycles worse — which is the number that matters on a
+raster-timed host. The tail is where its decoding cleverness lands: a line
+that reads a new track cell on all three channels does more work than
+Lightweight's did.
+
+So **AKM for a long tune, AKL for a short one**, and read the max column
+before either. See [`docs/format-akm.md`](docs/format-akm.md).
 
 AKG remains without a 6502 player anywhere.
 
@@ -225,9 +231,9 @@ with whole-song analysis — the trade this library exists to make, and
 3,584 bytes of workspace are eleven 256-byte ring windows that must be page
 aligned, where AKL and AKY want 22 bytes of zero page and nothing else.
 
-**So: AKL if memory is tight, AKY if cycles are, VGI if you have the RAM and
-need a flat worst case** — but read the next section before picking AKL for
-anything new.
+**So: AKL or AKM if memory is tight — AKM once the tune is long enough to pay
+for its bigger player — AKY if cycles are, VGI if you have the RAM and need a
+flat worst case.** Read the next section before picking AKL for anything new.
 
 ### Six-channel songs
 

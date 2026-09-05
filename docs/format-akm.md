@@ -228,22 +228,28 @@ Prime L4* over all 24,192, both identical.
 
 ### Cost
 
-Cycles for one call at 2 MHz, including the whole AY-to-SN conversion:
+Cycles for one call at 2 MHz, including the whole AY-to-SN conversion. Over
+the 39 corpus songs AKM averages **2,410**, worst frame 4,859, per-song mean
+between 2,239 and 2,680.
 
-| | mean | worst frame |
+**Against AKL on the same tunes**, which is the only comparison that means
+anything:
+
+| tune | AKL mean / max | AKM mean / max |
 |---|--:|--:|
-| across the 39 songs | **2,410** | 4,859 |
-| the cheapest song | 2,239 | 3,989 |
-| the dearest song | 2,680 | - |
+| Dead On Time | 2,683 / 3,686 | 2,775 / **4,267** |
+| Edge Grinder | 2,693 / 3,873 | 2,746 / **4,463** |
+| Orion Prime L4 | 2,712 / 3,889 | 2,751 / **4,541** |
 
-For comparison on the same terms, AKL is 2,689 mean and 3,870 worst on Edge
-Grinder's tune. **Targhan's own header warns that AKM is "much slower than the
-generic one or the AKY player"** - up to 45 CPC scanlines - and on a Z80 that
-is presumably so. On a 6502 it comes out slightly *cheaper* than AKL on
-average, with a worse tail. The reason is that most of what AKM added over
-Lightweight is decoding cleverness in the TRACK, which runs once a line, while
-the per-frame path - instruments, effects, the period lookup - is nearly the
-same work. Measure, do not assume, was the instruction; this is the measurement.
+**Targhan's own header warns that AKM is "much slower than the generic one or
+the AKY player"** - up to 45 CPC scanlines - and that is borne out. AKM costs
+39 to 92 cycles a call more than AKL, and its worst frame is 400 to 850 cycles
+worse, which is the figure that matters on a raster-timed host. The tail is
+where AKM's decoding cleverness lands: a line that reads a new track cell on
+all three channels does more work than Lightweight's did.
+
+The 39-song average of 2,410 is lower than any AKL figure above, but that is a
+different and easier set of tunes. It is not a saving; do not read it as one.
 
 ### Size, and the honest trade
 

@@ -226,6 +226,18 @@ player against `akm_reference.py` frame for frame across every song in
 Longest single runs: *Dead On Time* over all 3,726 of its calls and *Orion
 Prime L4* over all 24,192, both identical.
 
+### On a real machine
+
+`build/ARKOS-AKM.SSD`, built by `python example/build.py --player akm`, boots
+on a Master 128 in jsbeeb and plays. Two captures of twelve consecutive fields
+of SN76489 writes, taken 900 fields apart, were both found **byte for byte**
+in the simulated stream by `tools/verify/find_capture.py` - the first at
+simulated frames 37 and 229, the second at 563 and 947. Two alignments each
+rather than one because *Crtc* repeats at 192- and 384-frame intervals there.
+
+That is the only check that can catch a wiring, paging or interrupt fault:
+everything else runs in a simulator, which cannot get those wrong.
+
 ### Cost
 
 Cycles for one call at 2 MHz, including the whole AY-to-SN conversion. Over

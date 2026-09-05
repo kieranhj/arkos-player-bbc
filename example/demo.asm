@@ -60,13 +60,15 @@ RASTER_DELAY = 145 * 64
 LOAD     = &1900            \ DFS PAGE
 SONG     = &3000            \ where the tracker data is assembled
 
-\ PLAYER_AKY and SONG_TITLE come from the generated config.
+\ PLAYER_AKY, PLAYER_AKM and SONG_TITLE come from the generated config.
 INCLUDE "example/build/config.asm"
 
 \ ---- zero page -----------------------------------------------------
 ORG &70
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.h.asm"
+ELIF PLAYER_AKM
+INCLUDE "lib/akmplayer.h.asm"
 ELSE
 INCLUDE "lib/aklplayer.h.asm"
 ENDIF
@@ -129,6 +131,9 @@ IF PLAYER_AKY
     \ itself and finds the linker past it.
     lda #LO(SONG) : ldx #HI(SONG)
     jsr aky_init
+ELIF PLAYER_AKM
+    lda #LO(SONG) : ldx #HI(SONG) : ldy #0
+    jsr akm_init
 ELSE
     lda #LO(SONG) : ldx #HI(SONG) : ldy #0
     jsr akl_init
@@ -314,7 +319,9 @@ ENDIF
     bne do_silence      \ Mute is INSTEAD OF a frame of music, never as
 IF PLAYER_AKY           \ well as. Running the player and silencing the
     jsr aky_play        \ chip after it puts a burst of the tune's own
-ELSE                    \ volumes out fifty times a second, and crackles.
+ELIF PLAYER_AKM         \ volumes out fifty times a second, and crackles.
+    jsr akm_play
+ELSE
     jsr akl_play
 ENDIF
     jmp ay2sn
@@ -357,6 +364,8 @@ ENDIF
 .banner
 IF PLAYER_AKY
     EQUS 13, 10, 13, 10, "Arkos Tracker AKY replay", 13, 10
+ELIF PLAYER_AKM
+    EQUS 13, 10, 13, 10, "Arkos Tracker AKM replay", 13, 10
 ELSE
     EQUS 13, 10, 13, 10, "Arkos Tracker AKL replay", 13, 10
 ENDIF
@@ -379,6 +388,8 @@ ENDIF
 INCLUDE "lib/ay2sn.asm"
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.asm"
+ELIF PLAYER_AKM
+INCLUDE "lib/akmplayer.asm"
 ELSE
 INCLUDE "lib/aklplayer.asm"
 ENDIF
@@ -398,6 +409,8 @@ PRINT "spare between code and song =", ~SONG - code_end
 
 IF PLAYER_AKY
 SAVE "AKYDEMO", start, song_end, main
+ELIF PLAYER_AKM
+SAVE "AKMDEMO", start, song_end, main
 ELSE
 SAVE "AKLDEMO", start, song_end, main
 ENDIF

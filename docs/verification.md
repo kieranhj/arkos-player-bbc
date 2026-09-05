@@ -34,6 +34,23 @@ Nothing is checked against itself.
    the simulation exactly on 2026-09-05 — at four alignments 48 frames apart,
    because that passage of the tune repeats; every match was byte for byte.
 
+   `tools/verify/find_capture.py` does the search: paste jsbeeb's capture
+   into a file, point it at an `.snf` from `verify.py --snf`, and it says
+   where in the tune those bytes occur.
+
+       python tools/verify/verify.py --player akm --song X.aks --bass 2 \
+              --snf build/sim.snf
+       python tools/verify/find_capture.py build/capture.txt build/sim.snf
+
+   **The AKM demo disc, 2026-09-05, Master 128**: two captures of twelve
+   consecutive fields, taken 900 fields apart, both found BYTE FOR BYTE -
+   the first at simulated frames 37 and 229, the second at 563 and 947.
+   Two alignments each rather than one because Targhan's *Crtc* repeats at
+   192- and 384-frame intervals there; every match was exact.
+
+   This is the one class of fault everything upstream is blind to: it all
+   runs in a simulator, which cannot get paging or interrupts wrong.
+
 For AKY there is no Python transcription and none is needed. AKY is close to
 a register stream, so the 6502's `ay_regs` are compared straight to the
 oracle, which folds steps 1 and 2 into one stronger check.

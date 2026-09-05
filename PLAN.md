@@ -1,8 +1,7 @@
 # arkos-player-bbc — the plan
 
 **Status: steps 1-7 done, 2026-09-05, and AKM ported on the same day.** THREE players now,
-all verified against Arkos's own player; the AKL and AKY demo discs build and run in jsbeeb
-and the AKM one is not built yet. The README carries the results. What is left:
+all verified against Arkos's own player, and all THREE demo discs build and run in jsbeeb. The README carries the results. What is left:
 
 - **Step 7, the fidelity work**: the envelope mean, one software bass voice and the
   periodic-noise bass are BUILT and measured — see `docs/fidelity-plan.md`. Noise rate 3 is
@@ -31,8 +30,10 @@ and the AKM one is not built yet. The README carries the results. What is left:
   but head to head on the SAME tunes AKM is DEARER than AKL by 39-92 cycles a call and
   400-850 in the worst frame, which is Targhan's warning borne out. Its data is smaller on
   every tune and its player 549 bytes bigger, so it wins total RAM only on a long one: 538
-  bytes on EDGEA, 302 bytes WORSE on Dead On Time. What is left is the disc (step 3) and
-  jsbeeb. **Two things are parked in
+  bytes on EDGEA, 302 bytes WORSE on Dead On Time. **Step 3 is done too**:
+  `build/ARKOS-AKM.SSD` boots on a Master 128 in jsbeeb and plays, and two captures of
+  twelve consecutive fields taken 900 fields apart are both found BYTE FOR BYTE in the
+  simulated stream (`tools/verify/find_capture.py`). AKM is finished bar the open items. **Two things are parked in
   `docs/akm-open-questions.md`**: a rendering discrepancy on the other 25 songs (traced
   in full, cause narrowed to line timing rather than decode, not explained), and the
   eleven Atari ST and MSX tunes, which need only a different period table and would

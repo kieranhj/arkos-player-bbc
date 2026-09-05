@@ -86,14 +86,15 @@ fifty times a second, and crackles.
 Build the demo discs:
 
 ```
-python example/build.py                 # build/ARKOS-AKL.SSD, ARKOS-AKY.SSD
+python example/build.py                 # ARKOS-AKL / -AKY / -AKM .SSD
 python example/build.py --extra         # build/ARKOS-EDGEA.SSD, ARKOS-ORION.SSD
 python tools/verify/verify.py --player akl   # prove the player still works
+python tools/verify/akm_verify_corpus.py     # prove AKM on all 39 of its songs
 python tools/make_tables.py --check          # prove the tables still match
 python tools/compare_formats.py              # the size/cost table below
 ```
 
-Four discs, and the last two are test cases rather than demos. **EDGEA** is
+Five discs, and the last two are test cases rather than demos. **EDGEA** is
 the tune the library was built for and the only one here that uses the
 hardware envelope. **Orion Prime Level 4** is the hardest bass of the 75
 songs surveyed: 69% of its audible channel-frames are below the chip's
@@ -102,7 +103,12 @@ one-voice bass shows its limit. Both play through `lib/aklplayer.asm`.
 `--song` with `--disc` builds any other song the same way without
 overwriting a demo.
 
-All four **default to the periodic-noise bass** (`bass_mode 2`), because it
+The **AKM** disc plays Targhan's *Crtc*, and that tune was picked by
+measurement rather than taste: of the 75 songs `tools/survey_akm.py` sweeps,
+it reaches 21 of the player's 26 paths - including the pitch table and two of
+the force-speed effects, three paths AKL has still never executed.
+
+All five **default to the periodic-noise bass** (`bass_mode 2`), because it
 is the one a host can have without giving up a timer or taking on
 interrupts. B cycles to the software voice and to no bass at all, which is
 the comparison worth making by ear.

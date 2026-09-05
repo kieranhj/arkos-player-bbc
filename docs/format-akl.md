@@ -63,6 +63,16 @@ and any read outside the song. Run it on any new tune before trusting it.
 
 If a song trips this, use AKY (via Arkos Tracker 3) instead.
 
+**And run `--check` FIRST, because the 6502 player does not fail on this
+data - it SPINS.** Measured 2026-09-05: `akl_reference.py` raises at frame
+414 of Rhino's tune in a few milliseconds, but `lib/aklplayer.asm` fed the
+same export follows the wild pointer into memory that is not code and never
+returns, so a py65 harness sits in `while pc != RET: step()` for as long as
+you let it. An hour of silence, not an error. `tools/compare_formats.py`
+therefore asks the Python reference whether an export plays before it lets
+the simulator anywhere near it, and so should anything else that measures a
+tune it has not seen. On real hardware this is a hung machine.
+
 ## Three conventions that had to be understood
 
 These came out of proving the Python reference against `SongToYm.exe`, and

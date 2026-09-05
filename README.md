@@ -85,6 +85,7 @@ python example/build.py                 # build/ARKOS-AKL.SSD, ARKOS-AKY.SSD
 python example/build.py --extra         # build/ARKOS-EDGEA.SSD, ARKOS-ORION.SSD
 python tools/verify/verify.py --player akl   # prove the player still works
 python tools/make_tables.py --check          # prove the tables still match
+python tools/compare_formats.py              # the size/cost table below
 ```
 
 Four discs, and the last two are test cases rather than demos. **EDGEA** is
@@ -113,26 +114,101 @@ tune.
 
 ## Choosing a format
 
-Edge Grinder's tune (`EDGEA.SKS`, 349 s), exported 2026-09-05 with Arkos
-Tracker 3.7's own tools:
+Six ways to get a song out of an SN76489, over the four tunes on the demo
+discs. Every figure is measured, none is quoted from anywhere else, and
+`python tools/compare_formats.py` regenerates the lot into `build/formats.md`.
 
-| format | bytes | 6502 player | cycles/field | notes |
-|---|--:|---|--:|---|
-| **AKM** | **3,654** | none anywhere | — | the successor to AKL. Z80 only |
-| **AKL** | 4,741 | **`lib/aklplayer.asm`** | 2,320 mean, 3,378 max | **withdrawn upstream** |
-| AKG | 4,956 | none anywhere | — | keeps the true envelope shape |
-| **AKY** | 13,932 | **`lib/akyplayer.asm`** | 1,892 mean, 2,458 max | a register stream; cheapest CPU, largest data |
-| VGC / VGI | 15,942 / 23,514 | [vgm-player-bbc](https://github.com/kieranhj/vgm-player-bbc) | 2,952 / 3,141 mean | pre-converted logs, for comparison |
+Cycles are **one player call including its SN76489 writes**, simulated in
+py65 at 2 MHz. A call is a frame of music, so a 25 Hz song like *Dead On
+Time* is called half as often and costs half as much a second as its row
+suggests. RAM is the tune plus the player's code plus its workspace — the
+whole cost of having the music in the machine.
 
-Cycles are at 2 MHz, for the replay **and** the AY→SN conversion **and** the
-chip writes — everything between the interrupt and the sound. Measured in
-py65 over every frame of the tune by `tools/verify/verify.py`.
+### Rhino, Acid Demo 21 — 192 s, 50 Hz, 9,600 calls
 
-The code costs **3,300 bytes for AKL and 2,365 for AKY**, converter and
-software bass included.
+| format | tune | + player & workspace | = RAM | mean | max |
+|---|--:|--:|--:|--:|--:|
+| AKL | 5,270 | — | — | — | — |
+| **AKY** | 11,713 | 2,660 | **14,373** | 2,222 | 2,732 |
+| AKM | 7,092 | no player | — | — | — |
+| AKG | 8,674 | no player | — | — | — |
+| **VGC** | 7,460 | 2,816 | **10,276** | 1,711 | **5,321** |
+| **VGI** | 10,069 | 3,584 | **13,653** | 1,551 | 2,652 |
+| VGM (unpacked) | 84,249 | no player | — | — | — |
 
-**Pick AKL if memory is tight, AKY if cycles are** — but read the next
-section before picking AKL for anything new.
+AT2 exports an AKL for this tune and it **will not play** — the arpeggio
+fault in [`docs/format-akl.md`](docs/format-akl.md). This is the tune the
+AKY disc uses, and why.
+
+### Targhan, Dead On Time — 149 s, 25 Hz, 3,726 calls
+
+| format | tune | + player & workspace | = RAM | mean | max |
+|---|--:|--:|--:|--:|--:|
+| **AKL** | **1,988** | 3,595 | **5,583** | 2,679 | 3,682 |
+| **AKY** | 5,686 | 2,660 | 8,346 | 2,337 | 2,764 |
+| AKM | 1,741 | no player | — | — | — |
+| AKG | 2,074 | no player | — | — | — |
+| **VGC** | 5,950 | 2,816 | 8,766 | 2,034 | **5,430** |
+| **VGI** | 6,460 | 3,584 | 10,044 | 1,578 | 2,726 |
+| VGM (unpacked) | 39,493 | no player | — | — | — |
+
+### Tom&Jerry, Edge Grinder — 349 s, 50 Hz, 17,446 calls
+
+| format | tune | + player & workspace | = RAM | mean | max |
+|---|--:|--:|--:|--:|--:|
+| **AKL** | **4,741** | 3,595 | **8,336** | 2,689 | 3,870 |
+| **AKY** | 13,932 | 2,660 | 16,592 | 2,265 | 2,850 |
+| AKM | 3,654 | no player | — | — | — |
+| AKG | 4,956 | no player | — | — | — |
+| **VGC** | 14,702 | 2,816 | 17,518 | 1,485 | **5,546** |
+| **VGI** | 22,292 | 3,584 | 25,876 | 1,566 | 3,004 |
+| VGM (unpacked) | 128,027 | no player | — | — | — |
+
+### Targhan, Orion Prime L4 — 484 s, 50 Hz, 24,192 calls
+
+| format | tune | + player & workspace | = RAM | mean | max |
+|---|--:|--:|--:|--:|--:|
+| **AKL** | **2,320** | 3,595 | **5,915** | 2,709 | 3,886 |
+| **AKY** | 5,741 | 2,660 | 8,401 | 2,361 | 2,948 |
+| AKM | 1,755 | no player | — | — | — |
+| AKG | 2,368 | no player | — | — | — |
+| **VGC** | 5,841 | 2,816 | 8,657 | 1,002 | **5,601** |
+| **VGI** | 10,530 | 3,584 | 14,114 | 1,509 | 2,863 |
+| VGM (unpacked) | 100,445 | no player | — | — | — |
+
+### What that says
+
+**AKL is the smallest way to have music on a BBC**, and not by a little: on
+every tune where its export is sound it wins total RAM by 1.4× to **2.0×**,
+and the longer the tune the wider the gap — 8,336 bytes against VGI's 25,876
+for Edge Grinder's 349 seconds. A tracker replay stores the *song*; a
+register log stores the *output*, and output grows with length while a song
+mostly does not. Orion Prime is 484 seconds in 2,320 bytes.
+
+**VGI is the cheapest and by far the steadiest**, 1,509–1,578 cycles mean on
+every tune and never past 3,004. **VGC has the lowest mean of anything here**
+— 1,002 on Orion — and spikes to 5,321–5,601 on all four, which is the number
+that matters on a raster-timed host: it is the frame that tears. Our two are
+in between and flat, AKY's worst frame (2,732–2,948) beating AKL's
+(3,682–3,886) because AKY does almost nothing per frame and `ay2sn` becomes
+the whole cost.
+
+**The two Arkos formats with no player are the smallest data of all.** AKM
+beats AKL on every tune — 3,654 against 4,741 on Edge Grinder — and there is
+no 6502 AKM player anywhere in the world. That is the argument for porting
+one, and it is in [`docs/porting.md`](docs/porting.md).
+
+Two things the numbers do not say on their own. Our cycle figures **include
+the whole AY→SN conversion and the bass voice**, computed every call; VGC and
+VGI get all of that for free because `ym2sn.py` did it offline, hours before,
+with whole-song analysis — the trade this library exists to make, and
+[`docs/ay-to-sn.md`](docs/ay-to-sn.md) says how close it now gets. And VGI's
+3,584 bytes of workspace are eleven 256-byte ring windows that must be page
+aligned, where AKL and AKY want 22 bytes of zero page and nothing else.
+
+**So: AKL if memory is tight, AKY if cycles are, VGI if you have the RAM and
+need a flat worst case** — but read the next section before picking AKL for
+anything new.
 
 ### Six-channel songs
 

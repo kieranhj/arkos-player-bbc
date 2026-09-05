@@ -462,22 +462,20 @@ The remainder is frames wanting two voices at once, not frames B1 got wrong.
 
 ---
 
-## The volume curve - OPEN, and the biggest number left
+## The volume curve - two of three DONE
 
 `tools/compare_streams.py` holds the runtime stream against ym2sn's offline
 one, decoded to the chip's *state* at the end of each frame. With B1 on:
 
 | | tone period | tone volume | noise byte | noise volume |
 |---|--:|--:|--:|--:|
-| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** | 44.2% |
-| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** | 13.1% |
+| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% -> **100.0%** | **100.0%** | 44.2% -> 73.1% |
+| EDGEA (32% envelope) | 97.8% | 28.7% -> **97.4%** | **100.0%** | 13.1% -> 35.1% |
 
-Periods and the noise byte are done. **The volume columns are not**, and
-they are not the envelope either - Rhino's tune has no envelope at all.
+Three differences were found, all against `ym2sn`'s *default* settings.
+**The first two are fixed**; the arrows above are before and after.
 
-Three differences, all against `ym2sn`'s *default* settings:
-
-1. **`ym_sn_vol`.** Ours is `trunc((31 - level) * 0.75 / 2)`, the
+1. **`ym_sn_vol` - FIXED.** Ours was `trunc((31 - level) * 0.75 / 2)`, the
    dB-faithful mapping: the AY's ladder is -0.75 dB a step and the SN's is
    -2 dB, so the AY's 23 dB of range lands in SN attenuations **0-11**.
    ym2sn's default is `15 - ((v + 1) >> 1)`, a plain halving, which spreads
@@ -486,11 +484,11 @@ Three differences, all against `ym2sn`'s *default* settings:
    bottom, and it is what every stream anyone has listened to was made
    with. Ours is what ym2sn calls `-t`, and marks *Experimental*.
 
-2. **The 4-bit to 5-bit widening.** Ours is `(v << 1) | 1`; ym2sn's is
+2. **The 4-bit to 5-bit widening - FIXED.** Ours was `(v << 1) | 1`; ym2sn's is
    `(v << 1) | (v & 1)` (`ym2sn.py:1312-1318`), duplicating the low bit.
    They differ on every even volume, by one step.
 
-3. **The drums are too loud.** `ay2sn` gives the noise channel the volume of
+3. **The drums are too loud - STILL OPEN.** `ay2sn` gives the noise channel the volume of
    the loudest AY channel that has it open, whole. `ym2sn` sums a share of
    each open channel's *amplitude* - `NOISE_MIX_SCALE = 1/3`, because on the
    AY the noise is OR'd with the square wave and the channel carries both -
@@ -501,15 +499,20 @@ Three differences, all against `ym2sn`'s *default* settings:
    1 and 2 and is the likeliest of the three to be *heard* rather than
    measured.
 
-**Measured**: changes 1 and 2 take Rhino's tune from 23.5% to **100.0%** of
-tone volumes - the runtime converter reproducing a whole-song offline
-analysis exactly on periods, tone volumes and the noise byte - and EDGEA
-from 28.7% to 97.4%, the residual there being the envelope, which is E2/E3's
-problem and nobody else's. Change 1 alone gets Rhino to 54.9%; change 2 is
-the other half. Change 3 is untouched by either: the drum frames stay 2 to 3
-steps loud.
+**Measured, and now shipped**: changes 1 and 2 take Rhino's tune from 23.5%
+to **100.0%** of tone volumes - the runtime converter reproducing a
+whole-song offline analysis exactly on periods, tone volumes and the noise
+byte, on all 9,600 calls - and EDGEA from 28.7% to **97.4%**, the residual
+there being the hardware envelope, which is E2/E3's problem and nobody
+else's. Change 1 alone got Rhino to 54.9%; change 2 was the other half.
 
-None of it is built, because it changes the level of every note in every
-build, including Edge Grinder's `-Akl`, and that is a decision rather than a
-defect to be quietly fixed. `tools/compare_streams.py` reports all four
-columns, so whichever way it goes the number is there.
+`ENV_MEAN_LEVEL` was deliberately left at 12 through this. The 0.1961 mean
+amplitude is a fact about the AY's ladder and does not move with the
+mapping, though the attenuation it lands on does - 9 now, 7 before. EDGEA
+reaching 97.4% with a third of it under the envelope says the constant is
+still near enough; re-deriving it under the new curve is E2/E3's business.
+
+Change 3 is untouched by either: the drum frames stay 2 to 3 steps loud, and
+that is what "noise volume" in the table above is still missing.
+`tools/compare_streams.py` reports all four columns, so the number is always
+there.

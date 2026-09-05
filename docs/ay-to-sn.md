@@ -122,24 +122,29 @@ the end of each frame and compares only what could be heard:
 
 | | tone period | tone volume | noise byte | noise volume |
 |---|--:|--:|--:|--:|
-| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** | 44.2% |
-| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** | 13.1% |
+| Rhino, Acid Demo 21 (no envelope) | **100.0%** | **100.0%** | **100.0%** | 73.1% |
+| EDGEA (32% envelope) | 97.8% | 97.4% | **100.0%** | 35.1% |
 
-against 63.9% / ~25% and 3.6% / 5.9% before it. The periodic bass lands on
+against 63.9% / ~25% and 3.6% / 5.9% before this work started. **On a tune
+without a hardware envelope the runtime converter now reproduces the
+offline chain exactly** - every tone period, every tone volume and every
+noise byte, over all 9,600 calls of Rhino's Acid Demo. The periodic bass lands on
 **99.9% of the frames ym2sn puts it on**, and never on one it does not —
 6,165 of ym2sn's 6,173 on Rhino's tune, 13,600 of 13,608 on EDGEA — which
 is a runtime picker with no lookahead agreeing with a whole-song analysis.
 
-**The volume columns are what is left**, and only part of it is the
-envelope. Three things, all written up in `fidelity-plan.md` and none of
-them changed yet, because between them they move the level of every note in
-every build: `ym_sn_vol` is the dB-faithful mapping where ym2sn's default is
-a plain halving; the 4-bit to 5-bit widening differs by a step on even
-volumes; and **the drums come out 2 to 5 SN steps - 4 to 10 dB - louder
-than ym2sn's**, because ym2sn mixes the noise at a share of each open
-channel's amplitude and `ay2sn` takes the loudest channel whole. The first
-two together are worth 100.0% of tone volumes on Rhino's tune. The third is
-its own question and is the likeliest of the three to be heard.
+**Two things are left.** The tone-volume gap on EDGEA is the hardware
+envelope and nothing else, which is E2/E3 in `fidelity-plan.md`. And **the
+drums come out 2 to 3 SN steps - 4 to 6 dB - louder than ym2sn's**, because
+ym2sn mixes the noise at a share of each open channel's *amplitude* and
+`ay2sn` takes the loudest channel whole. That is the noise-volume column,
+and it is the likeliest of the two to be heard.
+
+The volume mapping itself used to be a third: `ym_sn_vol` was the
+dB-faithful curve where ym2sn's default is a plain halving, and the 4-bit
+to 5-bit widening differed by a step on every even volume. Both are ym2sn's
+now (KC, 2026-09-05) and between them they are the whole of 23.5% to
+100.0%.
 
 So what this library gives you is close to what the offline chain gives
 you, and no longer a different arrangement of it. Render both and listen:

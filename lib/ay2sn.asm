@@ -9,8 +9,9 @@
 \ *         SN period = 2 * AY period exactly - ym2sn's own formula
 \ *         reduces to that. Periods over ten bits are halved until
 \ *         they fit, which is the octave-up ym2sn does as well.
-\ * Volume: AY 4-bit volume -> 5-bit -> a 32-entry attenuation LUT,
-\ *         the same mapping ym2sn builds.
+\ * Volume: AY 4-bit volume -> 5-bit by duplicating the low bit -> a
+\ *         32-entry attenuation LUT. Both halves are ym2sn's DEFAULT
+\ *         settings, not its dB-faithful -t option; see make_tables.py.
 \ * Noise:  AY 5-bit noise period -> the nearest of the SN's three fixed
 \ *         rates by frequency, which is ym2sn's choice. The fourth rate
 \ *         clocks the noise from tone generator 3 and is never a drum:
@@ -22,7 +23,13 @@
 \ ******************************************************************
 
 \ A complete sweep of the AY's 5-bit envelope ladder averages 0.1961 of
-\ full amplitude - level 12, which ym_sn_vol maps to SN attenuation 7.
+\ full amplitude, which is level 12. ym_sn_vol maps that to SN attenuation
+\ 9 since the volume curve became ym2sn's (it was 7 under the dB-faithful
+\ one). The 0.1961 is a fact about the AY and does not move with the
+\ curve; whether the LEVEL is still the right thing to emit once the
+\ mapping has changed is an E2/E3 question, and the measurement says it is
+\ near enough - EDGEA's volumes went from 28.7% of ym2sn's to 97.4% with
+\ this constant untouched, and a third of that tune is envelope.
 ENV_MEAN_LEVEL  = 12
 
 \ The envelope completes a whole cycle within one 50 Hz call when its
@@ -90,10 +97,17 @@ ENV_FULL_PERIOD = 78
     lda env_level
     jmp have_vol5
 .fixed_vol
+    \ 4-bit volume -> the 5-bit scale the envelope also uses, so that one
+    \ table serves both. ym2sn widens it by DUPLICATING the low bit,
+    \ (v << 1) | (v & 1), and the difference from the (v << 1) | 1 that was
+    \ here is one attenuation step on every EVEN volume - half the levels
+    \ in the tune. Measured, it is half of what stood between this
+    \ converter and ym2sn's own output: see tools/make_tables.py's
+    \ ym_sn_vol. A table because the 6502 has no cheap way to say it.
     lda ay_regs+8,x
     and #15
-    asl a
-    ora #1                      \ 4-bit volume -> the 5-bit scale
+    tay
+    lda ay_vol5,y
 .have_vol5
     tay
     lda ym_sn_vol,y
@@ -670,6 +684,9 @@ USR_IER  = &FE6E
 .bass_prev    skip 1        \ ...and the one it chose last call
 .bass_mask    skip 1        \ which channels are below the floor
 
+\ 4-bit AY volume -> the 5-bit scale, (v << 1) | (v & 1): ym2sn's widening,
+\ which fills 0-31 rather than leaving the top of the range unreachable.
+.ay_vol5        equb 0, 3, 4, 7, 8, 11, 12, 15, 16, 19, 20, 23, 24, 27, 28, 31
 .per_idx        equb 0, 2, 4
 .sn_tone_latch  equb &80, &a0, &c0
 .sn_vol_latch   equb &90, &b0, &d0

@@ -7,11 +7,14 @@ player; both demo discs build and run in jsbeeb. The README carries the results.
   periodic-noise bass are BUILT and measured — see `docs/fidelity-plan.md`. Noise rate 3 is
   done, and turned out **not** to be "the tuned noise" or a percussion feature at all: in
   `ym2sn.py` it is only ever the bass. The real percussion gap was the noise RATE TABLE, which
-  was nearest by neither period nor frequency; fixed. Still open there: **the volumes** —
-  three differences from ym2sn, of which two would take the runtime output to an exact match
-  on a tune without envelopes and the third is that our drums are 4 to 10 dB too loud. All
-  three are KC's call, since they change every note in every build. And a **second and third
-  bass voice**, which 56 of the 75 songs turn out to want.
+  was nearest by neither period nor frequency; fixed. **The volume curve is ym2sn's now**
+  (KC, 2026-09-05), and with it the runtime converter reproduces ym2sn's whole-song offline
+  output EXACTLY on a tune without envelopes — every tone period, tone volume and noise byte
+  over all 9,600 calls of Rhino's Acid Demo, and 97.8/97.4/100% on EDGEA. Still open there:
+  **the drums are 4 to 6 dB too loud**, ym2sn mixing the noise at a share of each open
+  channel's amplitude where we take the loudest whole; the **envelope** (E2/E3), which is all
+  that EDGEA's residual is; and a **second and third bass voice**, which 56 of the 75 songs
+  turn out to want.
 - **Listening**: not done, and it is the point of all of it. `verify.py --snf`, then
   `tools/sn2wav.py`, against Arkos's own `SongToWav.exe` render of the same tune.
 - **AKM**: not started, and now the clearest next move. `docs/porting.md` has the route.

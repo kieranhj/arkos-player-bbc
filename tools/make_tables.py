@@ -90,13 +90,28 @@ def periods():
 def ym_sn_vol():
     """AY level (5-bit, 0-31) -> SN76489 attenuation (0 loud .. 15 silent).
 
-    The YM/AY datasheet gives -0.75 dB per step on the 5-bit envelope
-    ladder; the SN attenuates in -2 dB steps. So the attenuation for a
-    level is (31 - level) * 0.75 / 2, TRUNCATED - rounding up would make
-    a quiet note quieter than the AY intended, and truncating never does.
-    Level 0 is silence, which is attenuation 15 rather than 11.
+    ym2sn.py's default: 15 - ((level + 1) >> 1), a plain halving of the
+    5-bit level onto the SN's 4-bit attenuator.
+
+    This is NOT the dB-faithful mapping, and the dB-faithful one is what
+    was here before: the AY's ladder steps -0.75 dB and the SN's -2 dB, so
+    (31 - level) * 0.75 / 2 truncated, which puts the AY's 23 dB of range
+    into SN attenuations 0-11 and never makes a note quieter than the AY
+    intended. That is the more correct arithmetic and it is available in
+    ym2sn as -t, where it is marked *Experimental*.
+
+    The halving is what every SN76489 stream anyone has actually listened
+    to was made with, and it uses the chip's full 0-14 instead of stopping
+    at 11 - so a quiet note is genuinely quiet and a fade reaches silence.
+    Measured against ym2sn's own output for the same tune, this plus the
+    4-bit widening in lib/ay2sn.asm takes Rhino's Acid Demo from 23.5% of
+    tone volumes identical to 100.0%, and EDGEA from 28.7% to 97.4% (the
+    rest of EDGEA being the hardware envelope). KC's call, 2026-09-05;
+    docs/fidelity-plan.md, "The volume curve".
+
+    Level 0 is silence either way, which is attenuation 15.
     """
-    return [15] + [int((31 - n) * 0.75 / 2.0) for n in range(1, 32)]
+    return [15 - ((min(n + 1, 31) >> 1) & 15) for n in range(32)]
 
 
 def env_shape():

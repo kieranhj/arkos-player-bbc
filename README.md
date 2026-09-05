@@ -336,17 +336,18 @@ Touch)**. All MIT — see [`LICENSES/`](LICENSES/) and
 came from where.
 
 **The AY→SN76489 conversion is Simon Morris (simondotm)'s, and this is a
-runtime implementation of it, not an independent one.**
+runtime implementation of it, not an independent one.** Close enough now
+that on a tune with no hardware envelope it is not an approximation of his
+output at all - it *is* his output, every tone period, tone volume and
+noise byte, over all 9,600 calls of Rhino's Acid Demo.
 [`ym2sn.py`](https://github.com/simondotm/ym2149f) is where the period
 arithmetic, the volume mapping, the noise-rate matching, the periodic-noise
 bass and the priority-channel idea all come from, expertly tuned over a long
 time and against real ears; it is the reference this library is measured
 against, frame by frame, by `tools/compare_streams.py`. The software bass
-voice is his too, from `vgcplayer_bass.asm`. Where this library differs from
+voice is his too, from `vgcplayer_bass.asm`. Where this library still differs from
 `ym2sn.py` it is because a per-frame converter cannot do whole-song
-analysis - and where it agrees, it agrees exactly: on Rhino's Acid Demo 21
-the runtime stream matches ym2sn's tone periods and noise byte on 100% of
-audible frames.
+analysis: the hardware envelope, and the loudness of the drums.
 
 What is new here is the AKL replay, the BBC port of the AKY replay, and
 putting that conversion in the 6502 rather than in a build step. What is not

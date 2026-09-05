@@ -114,11 +114,24 @@ Rhino's Acid Demo does.
 
 ### The bass
 
-The SN76489's lowest note is 122 Hz, and `ay2sn` shifts anything lower up an
-octave. Between a third and nearly half of every tune measured falls below
-that line, so a tune with a tuned bass is the one that will sound most wrong
-even when the registers are exact. `tools/verify/verify.py` reports the
-figure per tune; `docs/ay-to-sn.md` has the numbers and the fix.
+The SN76489's lowest note is 122 Hz, and between a third and nearly half of
+every tune measured goes below it. Rather than shift those notes up an
+octave, `ay2sn` can park the channel's tone at an inaudible 125 kHz and
+**bit-bang the note in the volume domain from a VIA timer** - a real square
+wave, costing no musical channel and about 0.5% of the CPU.
+
+It is off until the host wires it up, because it needs an interrupt:
+
+1. put **User VIA T1 in free-run** (ACR bit 6 set, bit 7 clear) so it
+   reloads itself;
+2. call `bass_irq` when User VIA T1 interrupts (IFR bit 6);
+3. set `bass_enable` to 1.
+
+Leave `bass_enable` at 0 and the octave shift happens as before. One voice,
+which is enough for every frame of Rhino's tune and ~90% of the others.
+`example/demo.asm` does all three. The bass is only as steady as the
+interrupt latency - see [`docs/fidelity-plan.md`](docs/fidelity-plan.md),
+which also has the envelope fix and what is still open.
 
 ### AKL is withdrawn upstream
 

@@ -30,6 +30,10 @@ The loudest such channel wins.
 
 ## What is still missing
 
+**Two of these are now fixed** - the envelope mean and the bass - and what
+follows describes the problems as they were measured, with the fixes noted.
+See [`fidelity-plan.md`](fidelity-plan.md).
+
 Three things, all known, all affecting every player equally because they live
 here rather than in a replay.
 

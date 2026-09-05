@@ -1,6 +1,10 @@
 # Improving the fidelity: the envelope and the bass
 
-**Planned 2026-09-05, not started.** Everything below lives in
+**E1 and B2a are BUILT, 2026-09-05.** Both are in `lib/ay2sn.asm` and both
+run on the demo discs. What was found doing it is at the bottom, under
+"What the implementation turned up". E2/E3 and B1/B2b/B2c remain options.
+
+**Planned 2026-09-05.** Everything below lives in
 `lib/ay2sn.asm`, so it benefits every player in the library at once. The
 replays themselves are already exact against Arkos's own output; what is
 wrong is the conversion to a chip the music was not written for.
@@ -166,13 +170,51 @@ right.
 
 ## Order of work
 
-1. **E1**, the envelope constant. Smallest change, largest measured error,
-   and it is independent of everything else.
-2. **B2a**, one software bass voice. Do it in the demo first, where the
-   interrupt budget is empty and jitter cannot hide.
+1. ~~**E1**, the envelope constant.~~ **Done.**
+2. ~~**B2a**, one software bass voice.~~ **Done**, and working on both demo
+   discs - but see the open question below before trusting it.
 3. Re-measure and **listen**: `verify.py --snf` then `tools/sn2wav.py`,
-   against Arkos's own `SongToWav.exe` render of the same tune.
+   against Arkos's own `SongToWav.exe` render of the same tune. **Not done.**
 4. Only then consider B2b and E3.
+
+## What the implementation turned up
+
+**The bass costs a little more than estimated.** Both changes together add
+about 106 cycles to the mean 50 Hz call (2,164 to 2,270 on EDGEA) - the
+envelope test and the per-channel floor check, which run whether or not a
+voice is claimed.
+
+**Do not inline the sound-chip write in the interrupt.** The first version
+of `bass_irq` had its own copy of `sn_write`'s sequence, shortened: it held
+the write strobe low for 6 cycles where `sn_write` holds it for 10, and
+wrote all eight bits of the System VIA's port B rather than read-modify-
+writing the low four. The interrupt ran - the phase byte toggled - and **not
+one write reached the chip**. Calling `sn_write` (and saving X around it)
+fixed it immediately. `sn_write` is the sequence that is known to work; use
+it and pay the ten cycles.
+
+**An open question about the edge timing.** Captured out of jsbeeb, the bass
+edges come at the right average rate - mean 21,601 cycles against an
+expected 22,912, within 6% - but one edge lands at *exactly* 446 cycles into
+every frame, immediately after the music's last write, while the others
+drift freely as they should.
+
+That 446 is suspiciously exact. Real interrupt latency varies by a few
+cycles; a fixed offset every single frame looks like the sound write being
+**queued behind the music's ten writes** and timestamped when the chip takes
+it, rather than the interrupt being late. Rewriting the timer latches only
+when the note changes (which is now what happens, and is right anyway) did
+not shift it, which argues against the timer's phase being pulled.
+
+**It is not settled**, and the way to settle it is to time `bass_irq` itself
+- a breakpoint or a counter - rather than reading the timing off the sound
+capture, which is downstream of whatever the chip model does. Until then,
+treat the bass as working and its jitter as unmeasured.
+
+**The simulator cannot test any of this.** `verify.py` runs in py65 with no
+VIA, so `bass_enable` stays 0 there and its floor metric still reports the
+octave shift. That figure is now measuring the *fallback* path. Only jsbeeb
+sees the bass.
 
 ## How this gets verified
 

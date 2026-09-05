@@ -35,11 +35,20 @@ IRQ1V    = &0204
 \ beside it, every line of the banner overwrites the one before.
 
 SYS_IFR  = &FE4D                \ System VIA: VSync is bit 1
-USR_T1CL = &FE64                \ User VIA timer 1 - the raster timer.
-USR_T1CH = &FE65                \ Free on a BBC (the System VIA's T1 is
-USR_ACR  = &FE6B                \ the MOS's 100 Hz tick, and taking it
-USR_IFR  = &FE6D                \ would break the OS)
-USR_IER  = &FE6E
+
+\ Both User VIA timers are in use, and which job goes to which is not
+\ arbitrary. T2 is a ONE-SHOT ONLY timer, which is exactly what firing
+\ once at a scanline wants. T1 has a FREE-RUN mode that reloads itself,
+\ which is exactly what a square wave wants - so the bass gets T1 and
+\ its interrupt only has to toggle a volume.
+\ (The System VIA's T1 is the MOS's 100 Hz tick; taking it breaks the OS.)
+USR_T2CL = &FE68                \ raster: one-shot, fired from VSync
+USR_T2CH = &FE69
+USR_ACR  = &FE6B
+USR_IFR  = &FE6D
+IFR_T1   = &40                  \ the bass
+IFR_T2   = &20                  \ the raster point
+\ USR_IER is lib/ay2sn.asm's - it drives T1 itself.
 
 \ VSync happens in the vertical blanking, and the music is over long
 \ before the first scanline is drawn - so a band painted around it is
@@ -104,6 +113,8 @@ GUARD SONG
     sta mute_latch
     lda #REPLAY_DIV
     sta field_count
+    lda #1                          \ hand the low notes to the software
+    sta bass_enable                 \ bass instead of shifting them up
 
 IF PLAYER_AKY
     \ The base of the exported data: aky_init reads the AKY header
@@ -164,9 +175,10 @@ ENDIF
     lda #LO(irq_handler) : sta IRQ1V
     lda #HI(irq_handler) : sta IRQ1V+1
 
-    lda USR_ACR : sta old_acr    \ User VIA timer 1, one-shot mode
-    and #&3F    : sta USR_ACR
-    lda #&C0    : sta USR_IER    \ enable its interrupt
+    lda USR_ACR : sta old_acr    \ T1 free-run (bit 6), T2 interval (bit 5
+    and #&1F                     \ clear), and no PB7 output (bit 7 clear)
+    ora #&40    : sta USR_ACR
+    lda #&E0    : sta USR_IER    \ enable both timers' interrupts
     cli
     rts
 }
@@ -175,7 +187,7 @@ ENDIF
 .remove_irq
 {
     sei
-    lda #&40      : sta USR_IER  \ disable it again, and put the
+    lda #&60      : sta USR_IER  \ disable both again, and put the
     lda old_acr   : sta USR_ACR  \ User VIA back as the MOS had it
     lda old_irq   : sta IRQ1V
     lda old_irq+1 : sta IRQ1V+1
@@ -194,19 +206,15 @@ ENDIF
 .irq_handler
 {
     lda USR_IFR
-    and #&40                        \ User VIA timer 1: the raster point
-    bne do_music
+    and #IFR_T1                     \ the bass square wave. bass_irq uses
+    beq no_bass                     \ only A, so nothing to save
+    jsr bass_irq
+.no_bass
 
-    lda SYS_IFR
-    and #2                          \ System VIA: VSync
-    beq chain
-    sta SYS_IFR                     \ clear it
-    lda #LO(RASTER_DELAY) : sta USR_T1CL
-    lda #HI(RASTER_DELAY) : sta USR_T1CH    \ writing the high byte starts it
-    jmp chain
-
-.do_music
-    lda USR_T1CL                    \ reading it clears the timer's flag
+    lda USR_IFR
+    and #IFR_T2                     \ the raster point: time for the music
+    beq no_music
+    lda USR_T2CL                    \ reading it clears the timer's flag
 
     \ A song is authored for a fixed replay rate, and the AKL and AKY
     \ exports DO NOT CARRY IT - the player replays as often as it is
@@ -215,7 +223,7 @@ ENDIF
     \ tune, with nothing to show for it. example/build.py reads the rate
     \ out of the song and sets REPLAY_DIV.
     dec field_count
-    bne chain
+    bne no_music
     lda #REPLAY_DIV
     sta field_count
 
@@ -226,6 +234,14 @@ ENDIF
     lda #7 : jsr band               \ black: and it ends here
     pla : tay
     pla : tax
+.no_music
+
+    lda SYS_IFR
+    and #2                          \ System VIA, VSync: arm the raster
+    beq chain
+    sta SYS_IFR                     \ clear it
+    lda #LO(RASTER_DELAY) : sta USR_T2CL
+    lda #HI(RASTER_DELAY) : sta USR_T2CH    \ writing the high byte starts it
 .chain
     jmp (old_irq)
 }

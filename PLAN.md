@@ -3,10 +3,14 @@
 **Status: steps 1-7 done, 2026-09-05.** Both players work and are verified against Arkos's own
 player; both demo discs build and run in jsbeeb. The README carries the results. What is left:
 
-- **Step 7, the fidelity work**: the envelope mean and one software bass voice are BUILT and
-  measured — see `docs/fidelity-plan.md`. Still open there: **noise rate 3**, the tuned noise,
-  the last of the three gaps in `lib/ay2sn.asm`; and a **second and third bass voice**, which
-  54 of the 72 songs Arkos ships turn out to want.
+- **Step 7, the fidelity work**: the envelope mean, one software bass voice and the
+  periodic-noise bass are BUILT and measured — see `docs/fidelity-plan.md`. Noise rate 3 is
+  done, and turned out **not** to be "the tuned noise" or a percussion feature at all: in
+  `ym2sn.py` it is only ever the bass. The real percussion gap was the noise RATE TABLE, which
+  was nearest by neither period nor frequency; fixed. Still open there: **the volume curve**,
+  which is one table and one line and would take the runtime output to a byte-for-byte match
+  with ym2sn on a tune without envelopes — KC's call, since it changes every note in every
+  build; and a **second and third bass voice**, which 56 of the 75 songs turn out to want.
 - **Listening**: not done, and it is the point of all of it. `verify.py --snf`, then
   `tools/sn2wav.py`, against Arkos's own `SongToWav.exe` render of the same tune.
 - **AKM**: not started, and now the clearest next move. `docs/porting.md` has the route.

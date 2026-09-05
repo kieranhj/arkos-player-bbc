@@ -11,7 +11,10 @@
 \ *         they fit, which is the octave-up ym2sn does as well.
 \ * Volume: AY 4-bit volume -> 5-bit -> a 32-entry attenuation LUT,
 \ *         the same mapping ym2sn builds.
-\ * Noise:  AY 5-bit noise period -> one of the SN's three rates.
+\ * Noise:  AY 5-bit noise period -> the nearest of the SN's three fixed
+\ *         rates by frequency, which is ym2sn's choice. The fourth rate
+\ *         clocks the noise from tone generator 3 and is never a drum:
+\ *         it is the periodic-noise bass, bass_mode 2 below.
 \ * Envelope: there is ONE envelope generator on the AY, so one phase
 \ *         accumulator. It is SAMPLED once a frame, not averaged over
 \ *         the frame the way ym2sn does. That is the cheap option and
@@ -71,7 +74,12 @@ ENV_FULL_PERIOD = 78
     sta noise_att
     lda #255                    \ and no channel has claimed the bass
     sta bass_chan
-    jsr bass_pick               \ ...but decide now which one may
+    sta bass_skip
+    ldx #2                      \ every channel on its own SN tone slot,
+.slot_id                        \ until the periodic bass moves one
+    txa : sta sn_slot,x
+    dex : bpl slot_id
+    jsr bass_pick               \ decide now which channel may take the voice
 
     ldx #0
 .ch_loop
@@ -147,9 +155,13 @@ ENV_FULL_PERIOD = 78
 .nonzero
 
     \ ---- park this channel's SN bytes; the writes come after the loop
+    \ Through sn_slot, because the periodic bass has to be emitted on SN
+    \ tone slot 2 - rate 3 clocks the noise from tone generator 3 and
+    \ nothing else will do - and it swaps two channels round to get there.
+    ldy sn_slot,x
     lda snper
     and #15
-    ora sn_tone_latch,x
+    ora sn_tone_latch,y
     sta sn_t0,x
     lda snper+1
     asl a : asl a : asl a : asl a
@@ -159,7 +171,7 @@ ENV_FULL_PERIOD = 78
     ora tmp2
     sta sn_t1,x
     lda att
-    ora sn_vol_latch,x
+    ora sn_vol_latch,y
     sta sn_v,x
 
     inx
@@ -168,23 +180,47 @@ ENV_FULL_PERIOD = 78
     jmp ch_loop
 .chans_done
     \ ---- the nine tone/volume writes, X now free for sn_write -----
-    \ The bass channel's VOLUME is the interrupt's to write - it is the
-    \ square wave - so this must not stamp on it once a call.
+    \ A SOFTWARE bass channel's volume is the interrupt's to write - it is
+    \ the square wave - so this must not stamp on it once a call. That is
+    \ bass_skip, and it is 255 for the periodic bass, whose tone slot has
+    \ to be written silent here like any other.
     lda sn_t0+0 : jsr sn_write
     lda sn_t1+0 : jsr sn_write
-    lda bass_chan : beq no_v0
+    lda bass_skip : beq no_v0
     lda sn_v+0  : jsr sn_write
 .no_v0
     lda sn_t0+1 : jsr sn_write
     lda sn_t1+1 : jsr sn_write
-    lda bass_chan : cmp #1 : beq no_v1
+    lda bass_skip : cmp #1 : beq no_v1
     lda sn_v+1  : jsr sn_write
 .no_v1
     lda sn_t0+2 : jsr sn_write
     lda sn_t1+2 : jsr sn_write
-    lda bass_chan : cmp #2 : beq no_v2
+    lda bass_skip : cmp #2 : beq no_v2
     lda sn_v+2  : jsr sn_write
 .no_v2
+
+    \ ---- the periodic bass owns the noise channel when it is playing
+    \ The note sounds on the noise generator, clocked by tone generator 3
+    \ at a fifteenth of its frequency, at the claiming channel's own
+    \ volume. bass_pick only grants the voice when no drum wants the
+    \ channel, so there is nothing to arbitrate here.
+    lda bass_mode
+    cmp #2
+    bne drums
+    lda bass_chan
+    bmi drums
+    lda #&e3                    \ bit 2 CLEAR = periodic; rate 3 = tone 3
+    cmp noise_last              \ but only if it has changed: writing the
+    beq per_same                \ noise register RESETS the LFSR, which is
+    sta noise_last              \ a click on every retune. ym2sn dedupes it
+    jsr sn_write                \ for the same reason.
+.per_same
+    lda bass_att
+    ora #&f0
+    jsr sn_write
+    jmp bass_update
+.drums
 
     \ ---- noise -----------------------------------------------------
     \ &E4, not &E0: bit 2 of the noise byte is the FEEDBACK bit, and it
@@ -233,14 +269,18 @@ ENV_FULL_PERIOD = 78
 \ * vgcplayer_bass.asm in vgm-player-bbc.
 \ *
 \ * It costs no musical channel - the drums and the other two tones are
-\ * untouched - which is what makes it better than the periodic-noise
-\ * alternative. It costs a timer and two interrupts per cycle: 102 to
+\ * untouched. It costs a timer and two interrupts per cycle: 102 to
 \ * 157 a second on the tunes measured, about 0.5% of the CPU.
+\ *
+\ * bass_mode 2 is the other answer: the PERIODIC-NOISE bass, which needs
+\ * no timer and no interrupts at all but plays on the noise channel, so
+\ * the drums take it away whenever they want it - the median song in the
+\ * corpus, 10% of its bass calls. See bass_claim's .periodic.
 \ *
 \ * ONE voice. That is enough for every frame of Rhino's Acid Demo, 83%
 \ * of Dead On Time and 91% of EDGEA; the rest octave-shift as before.
 \ *
-\ * TO USE IT the host must:
+\ * TO USE THE SOFTWARE VOICE the host must:
 \ *   1. put User VIA T1 in FREE-RUN mode (ACR bit 6 set, bit 7 clear),
 \ *      so it reloads itself and the interrupt only has to toggle;
 \ *   2. call bass_irq when User VIA T1 interrupts - and test the flag
@@ -248,8 +288,10 @@ ENV_FULL_PERIOD = 78
 \ *      VIA interrupt does not stop its timer, so bit 6 goes on being
 \ *      set while T1 is disabled, and testing IFR alone will service
 \ *      the bass on the back of every other interrupt in the machine;
-\ *   3. set bass_enable to 1.
-\ * Leave bass_enable at 0 and none of this runs - the octave shift stays.
+\ *   3. set bass_mode to 1.
+\ * TO USE THE PERIODIC ONE, set bass_mode to 2. That is all: no timer,
+\ * no interrupt, nothing to wire up. Leave bass_mode at 0 and neither
+\ * runs - the octave shift stays.
 \ *
 \ * The bass is only as steady as the interrupt latency, so a host that
 \ * disables interrupts for long stretches will hear the pitch wobble.
@@ -281,17 +323,23 @@ USR_IER  = &FE6E
 {
     lda #255
     sta bass_want
-    lda bass_enable
-    beq out                     \ no timer wired up: nobody gets it
+    lda bass_mode
+    beq out                     \ mode 0: nobody gets it
 
     \ Which channels are audible and below the chip's floor?
     lda #0
     sta bass_mask
+    sta noise_busy
     ldx #2
 .scan
     lda ay_regs+8,x
     and #31
-    beq next                    \ silent
+    beq next                    \ silent: no drum and no bass either
+    lda ay_regs+7
+    and noise_bit,x
+    bne no_drum
+    inc noise_busy              \ the noise is open here AND has a volume
+.no_drum
     lda ay_regs+7
     and tone_bit,x
     bne next                    \ tone disabled
@@ -309,6 +357,13 @@ USR_IER  = &FE6E
 
     lda bass_mask
     beq out                     \ nobody wants it
+
+    lda bass_mode               \ the periodic voice IS the noise channel,
+    cmp #2                      \ so a drum takes it away - ym2sn's rule,
+    bne claimable               \ and measured it costs the median song 10%
+    lda noise_busy              \ of its bass calls (survey_tunes.py). The
+    bne out                     \ software voice has no such problem.
+.claimable
 
     ldx bass_prev               \ does last call's channel still want it?
     bmi lowest
@@ -337,6 +392,11 @@ USR_IER  = &FE6E
 .bass_claim
 {
     stx bass_chan
+    lda bass_mode
+    cmp #2
+    beq periodic
+
+    stx bass_skip               \ the interrupt owns this channel's volume
 
     \ The timer counts microseconds and wants HALF a period. An AY period
     \ p sounds at 1000000 / (16 * p) Hz, so half a period is 8 * p us -
@@ -355,6 +415,101 @@ USR_IER  = &FE6E
     lda #1 : sta snper
     lda #0 : sta snper+1
     rts
+
+\ ---- the periodic-noise voice ---------------------------------------
+\ The SN's noise generator, with the feedback bit clear, circulates a
+\ single set bit round its 15-bit shift register: a 1/15 duty-cycle pulse
+\ train at a fifteenth of whatever clocks it. Rate 3 clocks it from tone
+\ generator 3, so tone 3's period sets the pitch and the whole bass
+\ register is in reach - 8 Hz to 7.8 kHz against the tone channels' 122 Hz
+\ floor. This is what ym2sn.py does, and the timbre is its timbre: thin
+\ and reedy, not a square wave.
+.periodic
+    \ snper is 2 * the AY period, and the SN wants a fifteenth of it.
+    \ ROUNDED, which is ym2sn's own int(round()) - see div15.
+    jsr div15
+
+    \ The note is played by the noise channel at this channel's volume,
+    \ and the tone slot that clocks it must be silent. bass_skip stays
+    \ 255: unlike the software voice, that silence is ours to write.
+    lda att : sta bass_att
+    lda #15 : sta att
+
+    \ ...and this channel has to BE tone slot 2. Swap it with whoever is
+    \ there; the other two channels keep sounding on the slots that are
+    \ left, so the periodic bass costs no musical channel - only the drums.
+    ldy sn_slot,x
+    lda sn_slot+2 : sta sn_slot,x
+    tya           : sta sn_slot+2
+    rts
+}
+
+\ ******************************************************************
+\ * div15 - snper = round(snper / 15). Exact, and exactly ym2sn's value.
+\ *
+\ * No loop and no table. 256 = 15*17 + 1, so for x = 256h + l
+\ *
+\ *     x = 15*17h + (h + l)   and therefore   x/15 = 17h + (h + l)/15
+\ *
+\ * with h + l at most 287, which the same identity reduces to a single
+\ * byte; and for a byte v = 16a + b the remainder feeds back just once,
+\ * because a + b is at most 30. So the whole division is two adds, a
+\ * nibble swap and two compares.
+\ *
+\ * Adding 7 first turns the floor into a round, which is what ym2sn's
+\ * int(round(sn_tone)) does - proved equal on every value in the range
+\ * (snper is 1024 to 8190, a period of 68 to 546). Rounding rather than
+\ * truncating matters: at the bottom of the range one step of the period
+\ * is 25 cents, and rounding halves the worst error to 11.8 - which is
+\ * the chip's own quantisation and no more.
+\ ******************************************************************
+.div15
+{
+    clc
+    lda snper   : adc #7 : sta d_m       \ d_m = l, A+carry -> h
+    lda snper+1 : adc #0 : sta d_q+1     \ d_q+1 = h, 0..32
+
+    clc
+    adc d_m                              \ t = h + l, 0..287
+    bcc byte                             \ ...and if it carried, t = 256 + A,
+    adc #0                               \ so t/15 = 17 + (1 + A)/15. The ADC
+    sta d_m                              \ adds the 1 with the carry still set
+    lda #17
+    bne have17                           \ always
+.byte
+    sta d_m
+    lda #0
+.have17
+    sta d_q                              \ the 17, or nothing
+
+    lda d_m                              \ v/15 for a byte: v = 16a + b, and
+    lsr a : lsr a : lsr a : lsr a        \ a + b never needs a second pass
+    sta snper                            \ a
+    lda d_m : and #15
+    clc : adc snper                      \ u = a + b, 0..30
+    cmp #15
+    bcc no_one
+    inc snper
+    cmp #30
+    bcc no_one
+    inc snper                            \ only v = 255 reaches here
+.no_one
+    lda snper : clc : adc d_q : sta d_q  \ + the 17 from the carry above
+
+    \ and 17h on top: (h << 4) + h, sixteen bits
+    lda d_q+1 : sta snper
+    lda #0    : sta snper+1
+    asl snper : rol snper+1
+    asl snper : rol snper+1
+    asl snper : rol snper+1
+    asl snper : rol snper+1
+    clc
+    lda snper   : adc d_q+1 : sta snper
+    lda snper+1 : adc #0    : sta snper+1
+    clc
+    lda snper   : adc d_q : sta snper
+    lda snper+1 : adc #0  : sta snper+1
+    rts
 }
 
 \ ******************************************************************
@@ -368,6 +523,16 @@ USR_IER  = &FE6E
     jmp bass_stop               \ nothing wants it: shut the timer down
 
 .playing
+    lda bass_mode               \ the periodic voice has no timer at all;
+    cmp #2                      \ but if the host has just switched to it
+    bne software                \ from the software voice, stop that one
+    lda bass_running
+    beq no_timer
+    jmp bass_timer_off
+.no_timer
+    rts
+
+.software
     \ Retune ONLY when the note has actually changed. Free-run reloads
     \ from the latches by itself, and writing them every call - even with
     \ the same value - pulls the timer's phase towards the call rate:
@@ -411,9 +576,19 @@ USR_IER  = &FE6E
     \ got out of step - mute left the timer running and the interrupt
     \ wrote the channel back up fifty times a second underneath it.
     \ Silencing a timer that is already silent costs 16 cycles.
-    lda #0   : sta bass_running
     lda #&FF : sta bass_last        \ force a retune when it comes back
     sta bass_prev
+    \ falls into bass_timer_off
+}
+
+\ ******************************************************************
+\ * bass_timer_off - the hardware half of bass_stop, on its own so that
+\ * a host switching from the software voice to the periodic one has one
+\ * place to turn the timer off rather than a second copy of this.
+\ ******************************************************************
+.bass_timer_off
+{
+    lda #0   : sta bass_running
     lda #&40 : sta USR_IER          \ bit 7 clear = disable T1
     sta USR_IFR                     \ and drop an interrupt already pending,
     rts                             \ or it writes one more stale volume
@@ -477,8 +652,14 @@ USR_IER  = &FE6E
 .env_step     skip 2
 .env_level    skip 1
 
-.bass_enable  skip 1        \ 0 = octave-shift as before; the host sets it
+.bass_mode    skip 1        \ 0 = octave-shift, 1 = software, 2 = periodic
 .bass_chan    skip 1        \ 0-2 while a voice is claimed, 255 otherwise
+.bass_skip    skip 1        \ the channel whose volume ay2sn must NOT write
+.bass_att     skip 1        \ the periodic voice's volume, for the noise chan
+.noise_busy   skip 1        \ is a drum using the noise channel this call?
+.sn_slot      skip 3        \ channel -> SN tone slot; identity but for B1
+.d_q          skip 2        \ div15's quotient...
+.d_m          skip 1        \ ...and the remainder it feeds back
 .bass_running skip 1        \ is the timer going?
 .bass_phase   skip 1        \ which half of the square wave is next
 .bass_on      skip 1        \ the channel's volume byte, sounding...

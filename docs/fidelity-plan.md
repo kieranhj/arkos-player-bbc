@@ -159,23 +159,35 @@ T1, User VIA T2 and System VIA T2, with a self-modifying `BEQ`/`BNE` (`EOR
 
 ### Options, side by side
 
-| | channels lost | timbre | cost *(est)* | interrupts |
+| | channels lost | timbre | cost | interrupts |
 |---|---|---|--:|---|
-| **B0** current: shift up an octave | none | wrong pitch | 0 | none |
-| **B1** periodic noise | noise + tone 2 | 1/15 pulse train | ~60 cyc/call | none |
-| **B2a** software bass, 1 voice, User VIA T1 free-run | none | square wave | ~200–350 cyc/frame | 102–157/s |
-| **B2b** software bass, 2 voices (+ User VIA T2) | none | square wave | ~2× the above | ~300/s |
-| **B2c** software bass, 3 voices (+ System VIA T2) | none | square wave | ~3× | ~450/s |
+| **B0** `bass_mode 0`: shift up an octave | none | wrong pitch | 0 | none |
+| **B1** `bass_mode 2`: periodic noise | the drums, while it plays | 1/15 pulse train | +309 cyc/call | **none** |
+| **B2a** `bass_mode 1`: software bass, 1 voice, User VIA T1 free-run | none | square wave | +200 cyc/call, and 200-350 a frame in the handler | 102-157/s |
+| **B2b** software bass, 2 voices (+ User VIA T2) | none | square wave | ~2x the above | ~300/s |
+| **B2c** software bass, 3 voices (+ System VIA T2) | none | square wave | ~3x | ~450/s |
 
-**Recommendation: B2a.** One software bass voice on User VIA T1 in free-run
-mode. It is the cheapest of the software options — free-run reloads itself —
-it costs no musical channel, it fixes 100% of Rhino's bass and ~90% of the
-others, and it is a true square wave rather than a pulse train. Add B2b only
-if the two-voice frames turn out to matter by ear.
+Measured on Dead On Time, per 50 Hz call: mode 0 2,370 cycles, mode 1
+2,570, mode 2 2,679. Most of the +200 mode 1 and mode 2 share is
+`bass_pick`'s scan, which mode 0 skips entirely.
 
-Keep B1 in mind for one specific case: a host that cannot tolerate extra
-interrupts at all. It is the only zero-interrupt option that gets the pitch
-right.
+**Both B1 and B2a are built now**, and the host chooses with `bass_mode`.
+The original recommendation, and the reasoning still stands as the default:
+**B2a**, one software voice on User VIA T1 in free-run mode. It costs no
+musical channel, it is a true square wave rather than a pulse train, and it
+never has to give the voice up to a drum.
+
+**B1 is the answer for a host that cannot afford the interrupts** - which,
+KC, is most of them, and is why it was built rather than kept in mind. It is
+the only zero-interrupt option that gets the pitch right, it needs no timer
+and no wiring, and it is the only bass path `verify.py` can test in py65,
+since the simulator has no VIA. What it gives up is the drums while it
+plays: 10% of the median corpus song's bass calls, and 65% of the worst.
+
+Neither is a second voice. That is still B2b, or B1 *beside* B2a - the
+permutation and the sticky picker are already the pieces that would need,
+and 95-100% of the frames wanting two voices have the noise channel idle.
+Not built; KC parked the combination for later.
 
 ---
 
@@ -266,9 +278,13 @@ B2b are independent, and B2b is the bigger win on that evidence.
 1. ~~**E1**, the envelope constant.~~ **Done.**
 2. ~~**B2a**, one software bass voice.~~ **Done**, and working on both demo
    discs.
-3. Re-measure and **listen**: `verify.py --snf` then `tools/sn2wav.py`,
+3. ~~**B1**, the periodic-noise bass, and the noise rate table.~~ **Done**,
+   and on the demo discs as `bass_mode 2`.
+4. **The volume curve** - the open question below, and the biggest number
+   left by a long way.
+5. Re-measure and **listen**: `verify.py --snf` then `tools/sn2wav.py`,
    against Arkos's own `SongToWav.exe` render of the same tune. **Not done.**
-4. Only then consider B2b (a second bass voice), P2 (choosing the bass
+6. Only then consider B2b (a second bass voice), P2 (choosing the bass
    channel offline, per pattern) and E3.
 
 ## What the implementation turned up
@@ -366,3 +382,120 @@ So the checks for this work are different ones:
   measured on a running machine, not in py65. Capture the SN write stream and
   check the toggle intervals are the intended half-periods and that they do
   not drift.
+
+
+---
+
+## What B1 turned out to be
+
+**Three things in the notes were wrong, and each was wrong everywhere.**
+
+**Rate 3 is not a drum.** `PLAN.md`, `ay-to-sn.md`, this file and Edge
+Grinder's `layer-7-music-arkos.md` all called it "the tuned noise", the way
+to get a *pitched drum*, and "the largest remaining difference on
+percussion". Read `ym2sn.py`: a drum always gets `4 + rate`, feedback set,
+one of the three fixed rates (`ym2sn.py:1881`), and rate 3 appears in one
+place only, `else: if bass_active` (`ym2sn.py:1886`). Rate 3 **is** the
+periodic-noise bass. Tuned *white* noise is rate 7 and lives behind
+`ENABLE_TUNED_NOISE`, which is off by default.
+
+**"1,701 frames" was writes, not frames.** ym2sn only writes the noise
+register when it changes - writing it resets the LFSR - so 1,701 was the
+number of `&E3` writes. EDGEA has **9,990** frames of periodic bass, and
+`ay2sn` now claims the voice on exactly 9,990 of them: a runtime picker with
+no lookahead landing on the same frame set as a whole-song analysis.
+
+**B1 does not cost tone 2.** ym2sn permutes which AY channel goes to which
+SN tone slot (`ym2sn.py:1727-1770`), so the slot spent as the clock is the
+bass channel's own, and its note is on the noise channel. Nothing musical is
+lost - only the drums, and only while the bass plays. `ay2sn` keeps a
+three-byte `sn_slot` map and swaps two entries; the parking code indexes the
+latch tables through it, twelve cycles a call.
+
+**There WAS a percussion gap, and it was the rate table.** `ay_noise_rate`
+had its thresholds at AY periods 8 and 16, described as "nearest by period",
+and was neither that (12 and 24) nor nearest by frequency (10.7 and 21.3).
+Nine entries changed. On EDGEA that is 1,088 of 3,020 noise calls, 36%;
+across the corpus the median song changes on 1% and 17 of 75 on more than
+20%. Fixed first, on its own commit, and derived from the clock rates now.
+
+**The divide by 15 is closed-form, not a loop.** The SN's periodic noise
+runs at a fifteenth of tone generator 3, so the period is
+`round(2 * ay_period / 15)` - exactly `ym2sn`'s `int(round())`. The first
+version looped `x -> (x & 15) + (x >> 4)` and cost 468 cycles, because a
+16-bit `lsr`/`ror` on absolute memory is 12 cycles a bit. Since
+`256 = 15 * 17 + 1`, `x/15 = 17h + (h + l)/15` for `x = 256h + l`, and the
+same identity reduces `h + l` to one byte whose remainder feeds back just
+once. Two adds, a nibble swap and two compares, about 210 cycles, and proved
+equal to `x // 15` on every value in the range.
+
+**Rounding, not truncating.** At the bottom of the range one step of the
+period is 25 cents. `round` halves the worst error to 11.8 cents, which is
+the chip's own quantisation and no more, and it is what ym2sn does.
+
+### How it was proved
+
+The AY-level harness cannot see any of this - it compares `ay_regs`, and
+this all happens below that line. So `verify.py` gained `--bass`, and
+because **mode 2 needs no VIA it runs in py65 exactly as it runs on the
+machine**, which the software voice never could. Over every frame of every
+tune tried it reports: the emitted tone-3 period equals ym2sn's
+`round(2p/15)` on every claimed call, the noise byte is `&E3` on every one,
+the clocking slot is silent on every one, and there are **zero** redundant
+noise writes (each would reset the LFSR and click).
+
+Then in jsbeeb: twelve consecutive fields of SN writes captured off the
+running AKY demo in NOISE mode occur in the simulated stream and nowhere
+else - the same proof the AKL player itself got. And the mode switch was
+watched in memory: `bass_running` goes 1 to 0 when the host moves from mode
+1 to mode 2, so the software voice's timer really is shut down.
+
+Coverage, as a share of the channel-frames below the chip's floor:
+
+| tune | rescued by one periodic voice |
+|---|--:|
+| Rhino, Acid Demo 21 | **99.5%** (4,612 of 4,635) |
+| EDGEA | 81.5% (9,990 of 12,255) |
+| Targhan, Dead On Time | 78.7% (2,353 of 2,989) |
+
+The remainder is frames wanting two voices at once, not frames B1 got wrong.
+
+---
+
+## The volume curve - OPEN, and the biggest number left
+
+`tools/compare_streams.py` holds the runtime stream against ym2sn's offline
+one, decoded to the chip's *state* at the end of each frame. With B1 on:
+
+| | tone period | volume | noise byte |
+|---|--:|--:|--:|
+| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** |
+| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** |
+
+Periods and noise are done. **The volume column is one table and one line
+of code**, and it is not the envelope - Rhino's tune has no envelope at all.
+
+Two differences, both against `ym2sn`'s *default* settings:
+
+1. **`ym_sn_vol`.** Ours is `trunc((31 - level) * 0.75 / 2)`, the
+   dB-faithful mapping: the AY's ladder is -0.75 dB a step and the SN's is
+   -2 dB, so the AY's 23 dB of range lands in SN attenuations **0-11**.
+   ym2sn's default is `15 - ((v + 1) >> 1)`, a plain halving, which spreads
+   the same 23 dB over the SN's full **0-14**. Ours is the more faithful
+   arithmetic; ym2sn's is louder at the top and genuinely quiet at the
+   bottom, and it is what every stream anyone has listened to was made
+   with. Ours is what ym2sn calls `-t`, and marks *Experimental*.
+
+2. **The 4-bit to 5-bit widening.** Ours is `(v << 1) | 1`; ym2sn's is
+   `(v << 1) | (v & 1)` (`ym2sn.py:1312-1318`), duplicating the low bit.
+   They differ on every even volume, by one step.
+
+**Measured**: making both changes takes Rhino's tune to **100.0% period,
+100.0% volume, 100.0% noise** - the runtime converter reproducing a
+whole-song offline analysis exactly - and EDGEA to 97.8% / 97.4% / 100.0%,
+the residual being the envelope, which is E2/E3's problem and nobody else's.
+
+It is not built, because it changes the volume of every note in every build,
+including Edge Grinder's `-Akl`, and that is KC's call and not a defect to
+be quietly fixed. Change 2 alone is a bug-shaped thing; change 1 alone gets
+Rhino to 54.9%. Both together are the 100%.

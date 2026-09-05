@@ -131,12 +131,16 @@ Rhino's Acid Demo does.
 ### The bass
 
 The SN76489's lowest note is 122 Hz, and between a third and nearly half of
-every tune measured goes below it. Rather than shift those notes up an
-octave, `ay2sn` can park the channel's tone at an inaudible 125 kHz and
-**bit-bang the note in the volume domain from a VIA timer** - a real square
-wave, costing no musical channel and about 0.5% of the CPU.
+every tune measured goes below it. `bass_mode` picks what happens to those
+notes:
 
-It is off until the host wires it up, because it needs an interrupt:
+| `bass_mode` | | interrupts | costs |
+|--:|---|---|---|
+| **0** | shift them up an octave | none | the tune's bass line |
+| **1** | **software bass**: park the channel's tone at an inaudible 125 kHz and bit-bang the note in the volume domain from a VIA timer — a real square wave | a VIA timer, 102–157 IRQ/s | nothing musical |
+| **2** | **periodic noise**: the SN's noise generator with the feedback bit clear is a 1/15 duty pulse train clocked by tone generator 3, so tone 3's period sets the pitch and the whole bass register is in reach. This is what `ym2sn.py` does | **none** | the drums, while it plays |
+
+Mode 1 is off until the host wires it up, because it needs an interrupt:
 
 1. put **User VIA T1 in free-run** (ACR bit 6 set, bit 7 clear) so it
    reloads itself;
@@ -146,17 +150,28 @@ It is off until the host wires it up, because it needs an interrupt:
    testing IFR alone services the bass on the back of every other interrupt
    in the machine. That mistake cost an afternoon: it made mute not mute and
    the bass crackle;
-3. set `bass_enable` to 1.
+3. set `bass_mode` to 1.
 
-Leave `bass_enable` at 0 and the octave shift happens as before.
-`example/demo.asm` does all three, and `akl_silence` stops the bass as well
-as the four channels, so muting really mutes.
+Mode 2 needs none of that — `bass_mode = 2` and nothing else. It is the one
+to reach for on a host that cannot spare a timer or cannot tolerate extra
+interrupts, and it is **the only bass path the simulator can test**, since
+py65 has no VIA. Leave `bass_mode` at 0 and the octave shift happens as
+before. `example/demo.asm` cycles all three on the B key, and `akl_silence`
+stops the bass as well as the four channels, so muting really mutes.
 
-**There is one voice**, and it is sticky — the channel holding it keeps it
-while it still wants it, because choosing the lowest-numbered claimant each
-call made it hop 25 times a second on a tune where two channels play the
-same low note. One voice covers every frame of Rhino's tune, but over a
-75-song corpus **30 want three simultaneous bass voices and 26 want two**,
+Which to choose is the drums against the interrupts. Mode 2 gives the voice
+up whenever a drum wants the noise channel, which over the 75-song corpus
+is **10% of the median song's bass calls** (mean 15%, seven songs above
+40%); mode 1 never does. Against that, mode 2 costs no timer at all, and per
+call it is only ~110 cycles dearer than mode 1 — which is less than mode 1's
+interrupts cost on top.
+
+**There is one voice either way**, and it is sticky — the channel holding it
+keeps it while it still wants it, because choosing the lowest-numbered
+claimant each call made it hop 25 times a second on a tune where two
+channels play the same low note. One voice covers 99.5% of Rhino's
+below-floor notes, 81.5% of EDGEA's and 78.7% of Dead On Time's, but over
+the corpus **30 songs want three simultaneous bass voices and 26 want two**,
 so it is a real limitation; the rest octave-shift as before.
 
 The bass is only as steady as the interrupt latency — measured at about ±1%
@@ -229,12 +244,27 @@ Touch)**. All MIT — see [`LICENSES/`](LICENSES/) and
 [`LICENSES/PROVENANCE.md`](LICENSES/PROVENANCE.md) for exactly which file
 came from where.
 
-What is new here is the AKL replay, the BBC port of the AKY replay, and the
-AY→SN76489 layer. What is not new is every idea underneath them.
+**The AY→SN76489 conversion is Simon Morris (simondotm)'s, and this is a
+runtime implementation of it, not an independent one.**
+[`ym2sn.py`](https://github.com/simondotm/ym2149f) is where the period
+arithmetic, the volume mapping, the noise-rate matching, the periodic-noise
+bass and the priority-channel idea all come from, expertly tuned over a long
+time and against real ears; it is the reference this library is measured
+against, frame by frame, by `tools/compare_streams.py`. The software bass
+voice is his too, from `vgcplayer_bass.asm`. Where this library differs from
+`ym2sn.py` it is because a per-frame converter cannot do whole-song
+analysis - and where it agrees, it agrees exactly: on Rhino's Acid Demo 21
+the runtime stream matches ym2sn's tone periods and noise byte on 100% of
+audible frames.
+
+What is new here is the AKL replay, the BBC port of the AKY replay, and
+putting that conversion in the 6502 rather than in a build step. What is not
+new is every idea underneath them.
 
 The AKL work was built for the [Edge Grinder BBC
 port](https://github.com/kieranhj/edge-beeb) and extracted from it.
-`sn_write` comes from [vgm-player-bbc](https://github.com/kieranhj/vgm-player-bbc).
+`sn_write` comes from [vgm-player-bbc](https://github.com/kieranhj/vgm-player-bbc),
+also Simon's.
 
 ## Documentation
 
@@ -244,8 +274,8 @@ port](https://github.com/kieranhj/edge-beeb) and extracted from it.
   per-frame converter cannot do
 - [`docs/verification.md`](docs/verification.md) — the oracle chain and how to
   re-run it
-- [`docs/fidelity-plan.md`](docs/fidelity-plan.md) — the plan for the
-  envelope and the bass, with the measurements behind it
+- [`docs/fidelity-plan.md`](docs/fidelity-plan.md) — the envelope and the
+  two bass voices, what each cost, and the one question still open
 - [`docs/porting.md`](docs/porting.md) — taking a replay to another 6502, or
   to a real AY
 - [`PLAN.md`](PLAN.md) — where this came from and what is left

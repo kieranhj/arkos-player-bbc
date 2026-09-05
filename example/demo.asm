@@ -118,7 +118,7 @@ GUARD SONG
     lda #REPLAY_DIV
     sta field_count
     lda #1                          \ hand the low notes to the software
-    sta bass_enable                 \ bass instead of shifting them up
+    sta bass_mode                   \ bass instead of shifting them up
     jsr show_bass
 
 IF PLAYER_AKY
@@ -134,14 +134,18 @@ ENDIF
     jsr install_irq
 
 .loop
-    lda #&81                        \ B down? toggle the software bass, so
-    ldx #(256 - KEY_B) : ldy #&FF   \ the difference can be heard both ways
-    jsr OSBYTE
+    lda #&81                        \ B down? cycle the bass through OFF,
+    ldx #(256 - KEY_B) : ldy #&FF   \ the software voice and the periodic
+    jsr OSBYTE                      \ one, so all three can be compared
     cpx #&FF
     bne b_up
     lda b_latch
     bne after_b
-    lda bass_enable : eor #1 : sta bass_enable
+    lda bass_mode : clc : adc #1
+    cmp #3 : bcc b_ok
+    lda #0
+.b_ok
+    sta bass_mode
     lda #1 : sta b_latch
     jsr show_bass
     jmp after_b
@@ -187,23 +191,23 @@ ENDIF
 \ ******************************************************************
 \ * the 50 Hz interrupt
 \ ******************************************************************
-\ Print ON or OFF at the end of the "Software bass:" line.
+\ Print which bass the library is using, at the end of the "Bass:" line.
+\ Five characters, always: OFF, SOFT (a VIA timer bit-banging a square
+\ wave) or NOISE (the SN's periodic noise, no interrupts).
 .show_bass
 {
     ldx #0
 .pos
     lda bass_at,x : jsr OSWRCH
     inx : cpx #3 : bne pos
-    ldx #0
-    lda bass_enable
-    bne on
-.off_loop
-    lda bass_off_t,x : jsr OSWRCH
-    inx : cpx #4 : bne off_loop
-    rts
-.on
-    lda bass_on_t,x : jsr OSWRCH
-    inx : cpx #4 : bne on
+    lda bass_mode
+    asl a : asl a               \ five bytes a name: 4 * mode + mode
+    clc : adc bass_mode
+    tay
+    ldx #5
+.name
+    lda bass_names,y : jsr OSWRCH
+    iny : dex : bne name
     rts
 }
 .b_latch skip 1
@@ -356,18 +360,17 @@ ENDIF
     EQUS "for the BBC Micro", 13, 10
     EQUS 13, 10, SONG_TITLE, 13, 10
     EQUS 13, 10, "The red band is the music.", 13, 10
-    EQUS "Software bass: ", 13, 10
-    EQUS 13, 10, "SPACE mutes.  B toggles the bass.", 13, 10
+    EQUS "Bass: ", 13, 10
+    EQUS 13, 10, "SPACE mutes.  B cycles the bass.", 13, 10
     EQUS "ESCAPE quits.", 13, 10
     EQUB 0
 
-\ The status text sits at the end of the "Software bass: " line. VDU 31
-\ is TAB(x,y); the line is row 9 and the text is 15 characters in.
-.bass_at    EQUB 31, 15, 8
-.bass_on_t  EQUS "ON  "
-.bass_off_t EQUS "OFF "   \ four characters, like ON: the printer
-                          \ writes a fixed four, so a short string
-                          \ prints whatever byte follows it
+\ The status text sits at the end of the "Bass: " line. VDU 31 is
+\ TAB(x,y); the line is row 9 and the text is 6 characters in.
+.bass_at    EQUB 31, 6, 8
+.bass_names EQUS "OFF  "  \ five characters each, and the printer writes a
+            EQUS "SOFT "  \ fixed five, so they are padded rather than
+            EQUS "NOISE"  \ terminated
 
 \ ---- the library ---------------------------------------------------
 INCLUDE "lib/ay2sn.asm"

@@ -56,19 +56,40 @@ answer is to synthesise those notes with **periodic noise** on a priority
 bass channel, which is the same mechanism as the tuned noise below; the two
 fixes are really one piece of work.
 
-Fixed by a **software bass voice**: the channel's tone is parked at an
-inaudible 125 kHz and a User VIA T1 timer bit-bangs the note in the volume
-domain, a real square wave costing no musical channel. One voice, sticky to
+Fixed twice, and the host chooses with `bass_mode`. **Mode 1**, the
+software bass voice: the channel's tone is parked at an inaudible 125 kHz
+and a User VIA T1 timer bit-bangs the note in the volume domain, a real
+square wave costing no musical channel. **Mode 2**, the periodic-noise
+bass: `ym2sn`'s own trick, the noise generator with its feedback bit clear
+clocked by tone generator 3, costing no timer and no interrupt but giving
+the channel up whenever a drum wants it. One voice either way, sticky to
 its channel. See the README and `fidelity-plan.md`.
 
-### 2. Noise rate 3, the tuned noise — STILL OPEN
+### 2. Noise rate 3 — FIXED, and it was never a drum
 
-**Noise rate 3 — the tuned noise.** The SN's fourth noise rate clocks the
-   noise generator from tone generator 3, which is how you get a *pitched*
-   drum, and how a converter fakes a bass below the SN's 122 Hz floor.
-   `ym2sn.py` uses it on 1,701 frames of Edge Grinder's tune. `ay2sn.asm`
-   never emits it at all, only the three fixed rates. This is the largest
-   remaining difference on percussion.
+This entry used to say that rate 3 is "the tuned noise", how you get a
+*pitched drum*, and the largest remaining difference on percussion. **All
+of that was wrong**, and it was wrong in `PLAN.md` and in Edge Grinder's
+notes as well. Read `ym2sn.py`: a drum always gets `4 + rate` — the
+feedback bit set, one of the three fixed rates (`ym2sn.py:1881`) — and rate
+3 is emitted in exactly one place, `else: if bass_active` (`ym2sn.py:1886`).
+Rate 3 is the **periodic-noise bass**, and nothing else. (Tuned *white*
+noise, rate 7, exists behind `ENABLE_TUNED_NOISE`, which is off by default
+and was never used.) The "1,701 frames" figure was wrong too: ym2sn only
+writes the noise register when it changes, so 1,701 was the number of
+*writes*. EDGEA has 9,990 frames of periodic bass.
+
+So there was no percussion gap here. Rate 3 is `bass_mode 2` now — see the
+bass section above and `fidelity-plan.md`.
+
+There *was* a real percussion gap, and it was somewhere else: **the rate
+table**. `ay_noise_rate` put its thresholds at AY periods 8 and 16 and
+called that "nearest by period". Nearest by period is 12 and 24; nearest by
+frequency, which is what ym2sn does, is 10.7 and 21.3. It was neither. Nine
+entries changed, and on EDGEA that is 1,088 of 3,020 noise calls — 36%.
+Across the 75-song corpus the median song changes on 1% of its noise calls
+and 17 of the 75 on more than 20%. `tools/make_tables.py` derives it from
+the two clock rates now.
 
 ### 3. The envelope was sampled, not averaged — FIXED
 
@@ -95,19 +116,27 @@ does **whole-song analysis**: it picks a priority bass channel and synthesises
 tones below the SN's floor using periodic noise, and it low-passes the
 hardware envelope across each frame. `ay2sn.asm` sees one frame at a time.
 
-Compared frame for frame against a shipping VGM of the same tune:
+That was the story, and the fidelity work has largely closed it.
+`tools/compare_streams.py` decodes both streams to the chip's *state* at
+the end of each frame and compares only what could be heard:
 
-| | tone period exact | volume exact |
-|---|--:|--:|
-| non-envelope frames | 63.9% | ~25% |
-| envelope frames (33% of the tune) | 3.6% | 5.9% |
+| | tone period exact | volume exact | noise byte exact |
+|---|--:|--:|--:|
+| Rhino, Acid Demo 21 (no envelope) | 100.0% | 23.5% | 100.0% |
+| EDGEA (32% envelope) | 97.8% | 28.7% | 100.0% |
 
-That is not arithmetic error. On a channel where every AY register is
-constant, the offline stream sweeps 440 to 554 to 659 to 880 Hz —
-information that is simply not in the frame.
+against 63.9% / ~25% and 3.6% / 5.9% before it. The periodic bass lands on
+**99.9% of the frames ym2sn puts it on**, and never on one it does not —
+6,165 of ym2sn's 6,173 on Rhino's tune, 13,600 of 13,608 on EDGEA — which
+is a runtime picker with no lookahead agreeing with a whole-song analysis.
 
-So what this library gives you is **the tune re-voiced for the SN76489**, not
-the same tune in less memory. Render both and listen:
+The volume column is the one still wide open, and it is **not** the
+envelope: `ym_sn_vol` is the dB-faithful mapping and ym2sn's default is a
+plain halving that spreads the AY's 23 dB over the SN's 30. That is a
+decision, not an error, and it is written up in `fidelity-plan.md`.
+
+So what this library gives you is close to what the offline chain gives
+you, and no longer a different arrangement of it. Render both and listen:
 
 ```
 python tools/verify/verify.py --player akl --snf build/runtime.snf

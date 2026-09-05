@@ -193,6 +193,9 @@ def main():
     ap.add_argument('--frames', type=int, default=0,
                     help='stop after N frames (default: the whole tune)')
     ap.add_argument('--snf', help='also capture the SN76489 writes to this .snf')
+    ap.add_argument('--bass', type=int, default=0, choices=(0, 1, 2),
+                    help='bass_mode: 0 octave-shift, 1 software (needs a VIA, '
+                         'so it does nothing here), 2 periodic noise')
     args = ap.parse_args()
 
     if not os.path.exists(args.song):
@@ -239,6 +242,16 @@ def main():
     mpu.a, mpu.x, mpu.y = SIM_SONG & 0xFF, SIM_SONG >> 8, 0
     call(init)
 
+    # The bass voice. Mode 1 is interrupt-driven and py65 has no VIA, so it
+    # cannot be exercised here at all - only jsbeeb sees it. Mode 2, the
+    # periodic-noise voice, is pure ay2sn and runs here exactly as it runs
+    # on the machine, which is why it gets checks 5 and 6 below and the
+    # software voice never could.
+    mem[lab['bass_mode']] = args.bass
+    print('bass:    mode %d (%s)' % (args.bass,
+          ('octave shift', 'software - NOT simulated, needs a VIA',
+           'periodic noise')[args.bass]))
+
     ym, ymexe = oracle(args.song)
     if ym:
         # The rate the song is AUTHORED for. It is not in the exported data:
@@ -267,11 +280,13 @@ def main():
 
     regs = lab['ay_regs']
     perframe, captured, got_frames, ref_frames = [], [], [], []
+    claimed = []                    # which channel took the bass voice, or 255
     mismatch, first = 0, None
     for f in range(n):
         del writes[:]
         perframe.append(call(lab['music_frame']))
         captured.append(list(writes))
+        claimed.append(mem[lab['bass_chan']])
         got = [mem[regs + i] for i in range(14)]
         got_frames.append(got)
         if ref is not None:
@@ -330,25 +345,87 @@ def main():
     # time - so every bass note below that comes out an OCTAVE HIGH. It is
     # the single most audible thing this conversion does wrong, and a tune
     # with a tuned bass will show it here.
-    shifted, audible = 0, 0
-    for got in got_frames:
+    low, audible, rescued = 0, 0, 0
+    for got, claim in zip(got_frames, claimed):
         for ch in range(3):
             vol = got[8 + ch]
             if not (vol & 31) or (got[7] >> ch) & 1:
                 continue                        # silent, or tone disabled
             audible += 1
             if (got[2 * ch] | ((got[2 * ch + 1] & 15) << 8)) > 511:
-                shifted += 1
+                low += 1
+                if claim == ch:
+                    rescued += 1
     print()
-    print("4. below the SN76489's 122 Hz floor, so shifted up an octave:")
+    print("4. below the SN76489's 122 Hz floor:")
     if audible:
         print('   %d of %d audible channel-frames (%.1f%%)'
-              % (shifted, audible, 100.0 * shifted / audible))
-        if shifted:
-            print('   This tune has notes the chip cannot reach. See')
-            print('   docs/ay-to-sn.md, "What is still missing".')
+              % (low, audible, 100.0 * low / audible))
+        if low:
+            print('   a bass voice took %d of them (%.1f%%); the other %d came'
+                  % (rescued, 100.0 * rescued / low, low - rescued))
+            print('   out an octave high. See docs/ay-to-sn.md.')
+            if args.bass == 1:
+                print('   NOTE: mode 1 needs a VIA and py65 has none, so this')
+                print('   is measuring the fallback, not the software voice.')
     else:
         print('   nothing audible in this range')
+
+    # ---- the periodic-noise bass, end to end ------------------------------
+    #
+    # Checks 1 and 2 cannot see any of this: they compare ay_regs, and the
+    # bass happens BELOW that line, in ay2sn. So this decodes what actually
+    # reached the chip and holds it against ym2sn.py's own arithmetic - the
+    # SN's periodic noise runs at a fifteenth of tone generator 3, so the
+    # period is round(2 * ay_period / 15), which is ym2sn's int(round()).
+    if args.bass == 2:
+        print()
+        print('5. the periodic-noise bass, decoded from the SN writes:')
+        bad_period = bad_noise = bad_vol = redundant = 0
+        claims = 0
+        latched = None
+        tone2 = [None, None]        # lo nibble, hi 6 bits
+        noise_byte = None
+        for got, claim, ws in zip(got_frames, claimed, captured):
+            prev_noise = noise_byte
+            for b in ws:
+                if b & 0x80:
+                    latched = (b >> 5) & 3
+                    if latched == 3 and not (b & 0x10):
+                        noise_byte = b
+                        if b == prev_noise:
+                            redundant += 1      # a needless LFSR reset
+                        prev_noise = b
+                    elif latched == 2 and not (b & 0x10):
+                        tone2[0] = b & 15
+                    elif latched == 2 and (b & 0x10):
+                        tone2vol = b & 15
+                elif latched == 2:
+                    tone2[1] = b & 0x3F
+            if claim > 2:
+                continue
+            claims += 1
+            ay = got[2 * claim] | ((got[2 * claim + 1] & 15) << 8)
+            want = int(round(2 * ay / 15.0))
+            if tone2[0] is None or tone2[1] is None:
+                bad_period += 1
+            elif (tone2[1] << 4) | tone2[0] != want:
+                bad_period += 1
+            if noise_byte != 0xE3:
+                bad_noise += 1
+            if tone2vol != 15:
+                bad_vol += 1        # the clock slot has to be silent
+        if not claims:
+            print('   the voice was never claimed in this tune')
+        else:
+            print('   claimed on %d of %d calls' % (claims, n))
+            print("   tone 3 period == ym2sn's round(2*p/15): %s"
+                  % ('every one' if not bad_period else '*** %d WRONG ***' % bad_period))
+            print('   noise byte &E3 (periodic, rate 3):        %s'
+                  % ('every one' if not bad_noise else '*** %d WRONG ***' % bad_noise))
+            print('   the clocking tone slot silent:            %s'
+                  % ('every one' if not bad_vol else '*** %d WRONG ***' % bad_vol))
+            print('   redundant noise writes (each resets the LFSR): %d' % redundant)
 
 
     if args.snf:

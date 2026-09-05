@@ -149,7 +149,7 @@ tune.
 
 ## Choosing a format
 
-Six ways to get a song out of an SN76489, over the four tunes on the demo
+Six ways to get a song out of an SN76489, over the five tunes on the demo
 discs. Every figure is measured, none is quoted from anywhere else, and
 `python tools/compare_formats.py` regenerates the lot into `build/formats.md`.
 
@@ -211,6 +211,32 @@ AKY disc uses, and why.
 | **VGI** | 10,530 | 3,584 | 14,114 | 1,509 | 2,863 |
 | VGM (unpacked) | 100,445 | no player | — | — | — |
 
+### Targhan, Crtc — 232 s, 50 Hz, 11,589 calls
+
+The AKM demo disc's tune, and the one where the choice is least close.
+
+| format | tune | + player & workspace | = RAM | mean | max |
+|---|--:|--:|--:|--:|--:|
+| AKL | 6,448 | — | — | — | — |
+| **AKM** | **6,159** | 4,161 | **10,320** | 2,954 | 5,004 |
+| AKY | 17,974 | 2,677 | 20,651 | 2,371 | **2,973** |
+| AKG | 6,798 | no player | — | — | — |
+| VGC | 21,037 | 2,816 | 23,853 | 2,155 | 5,125 |
+| VGI | 28,043 | 3,584 | 31,627 | — | — |
+| VGM (unpacked) | 130,088 | no player | — | — | — |
+
+**AKL cannot play this tune at all** — AT2's exporter writes 6,448 bytes
+whose tracks reference arpeggio table 29 when it wrote ten, the same fault it
+has on Rhino's tune and with the same arpeggio number. `export_akl.py --check`
+refuses it.
+
+**AKM is less than half the RAM of anything else that can play it**, and a
+third of VGI's. This is the shape the format was designed for: a long tune
+with a lot of pattern reuse, where a register log has to store every frame of
+output and a tracker replay does not.
+
+VGI has no cost figure because at 28,043 bytes the tune does not fit the
+harness's simulated memory. Its RAM figure is arithmetic, not a measurement.
 ### What that says
 
 **AKL is the smallest way to have music on a BBC**, and not by a little: on
@@ -249,7 +275,9 @@ that reads a new track cell on all three channels does more work than
 Lightweight's did.
 
 So **AKM for a long tune, AKL for a short one**, and read the max column
-before either. See [`docs/format-akm.md`](docs/format-akm.md).
+before either — and note that on *Crtc*, the longest tune here, AKM is the
+only tracker option at all, at less than half the RAM of anything else that
+plays it. See [`docs/format-akm.md`](docs/format-akm.md).
 
 AKG remains without a 6502 player anywhere.
 

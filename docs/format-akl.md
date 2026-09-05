@@ -47,9 +47,10 @@ number; read literally it reads the same out-of-range entry. The data is
 internally inconsistent and no player can play it.
 
 It is reproducible across three iterations of that song (which share their
-expression numbering) and does **not** happen with any Targhan song tested,
-nor with EDGEA — those use no arpeggio tables at all, which is exactly why it
-was never seen before.
+expression numbering), and **it is not confined to Rhino's tunes**: AT2 does
+the same to Targhan's own *Crtc*, referencing arpeggio 29 there too. It does
+not happen with a song that uses no arpeggio tables at all — EDGEA, *Dead On
+Time* — which is exactly why it went unseen for so long.
 
 `--check` catches it:
 
@@ -62,6 +63,14 @@ the highest index the tracks actually reference, the features the song uses,
 and any read outside the song. Run it on any new tune before trusting it.
 
 If a song trips this, use AKY (via Arkos Tracker 3) instead.
+
+**The reference itself used to spin on it too.** When the bad arpeggio's end
+markers point at each other rather than off the end of the song, there is no
+out-of-range read to catch: `manage_effects` just hops between them forever.
+Both of its loops are bounded now and raise `AklDataError` instead, because a
+checker that hangs is worse than no checker - it looks like slow progress.
+Measured on *Crtc*, 2026-09-05: it hung at frame 1422 and now refuses in
+milliseconds.
 
 **And run `--check` FIRST, because the 6502 player does not fail on this
 data - it SPINS.** Measured 2026-09-05: `akl_reference.py` raises at frame

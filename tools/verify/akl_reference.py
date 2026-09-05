@@ -247,7 +247,7 @@ class Player(object):
         if t.arp_used:
             self.note('frame:arpeggio-table')
             off = t.arp_off
-            while True:
+            for _hop in range(257):
                 a = self.b(t.pt_arp + off)
                 if a & 1:                                # end: loop offset
                     # The Z80 does `sra a` then `ld l,a : ld h,0`, so the loop
@@ -258,11 +258,17 @@ class Player(object):
                     continue
                 t.arp_val = s8(a) >> 1
                 break
+            else:
+                raise AklDataError(
+                    'arpeggio %d at &%04X loops without ever giving a value: '
+                    'its end markers point at each other. No player can play '
+                    'this - the 6502 spins, and so did this reference until '
+                    'the hop count was bounded.' % (t.arp_used, t.pt_arp))
             t.arp_off = (off + 1) & 0xFF
         if t.pt_used:
             self.note('frame:pitch-table')
             off = t.pit_off
-            while True:
+            for _hop in range(257):
                 a = self.b(t.pt_pit + off)
                 if a & 1:
                     off = (s8(a) >> 1) & 0xFF            # as above
@@ -270,6 +276,11 @@ class Player(object):
                     continue
                 t.pit_val = s8(a) >> 1
                 break
+            else:
+                raise AklDataError(
+                    'pitch table %d at &%04X loops without ever giving a '
+                    'value: its end markers point at each other.'
+                    % (t.pt_used, t.pt_pit))
             t.pit_off = (off + 1) & 0xFF
 
     # ---- sound stream -----------------------------------------------------

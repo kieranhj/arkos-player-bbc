@@ -1,0 +1,88 @@
+# Songs whose AKM replay verifies against SongToYm.exe with nothing
+# outside the classes docs/format-akm.md explains: the six-note +1,
+# volume differing by exactly one, and stale registers on a silent
+# channel. Regenerate with tools/verify/akm_corpus.py.
+# Measured 2026-09-05, AT3 exporter, 3000 frames each.
+#
+# THIS IS THE CORPUS lib/akmplayer.asm IS VERIFIED ON.
+
+FenyxKell - BD10n'nOeuf.sks
+FenyxKell - Bobline.sks
+FenyxKell - Smoke.sks
+FenyxKell - Solarium.sks
+Targhan - Dead On Time - Ingame.sks
+Targhan - Dead On Time - Main Menu.sks
+Targhan - Dead On Time - Sound Effects.sks
+Targhan - DemoIzArt - End Part.sks
+Targhan - DemoIzArt - Twist Part.sks
+Targhan - Midline Process - Molusk.sks
+Targhan - Ooops.sks
+Targhan - Orion Prime - Danger Ahead.sks
+Targhan - Orion Prime - Fight.sks
+Targhan - Orion Prime - Level 1.sks
+Targhan - Orion Prime - Level 4 - Theme 1.sks
+Targhan - Star Sabre - Boss Theme.sks
+Targhan - Star Sabre - Intermission.sks
+Targhan - Star Sabre - Main Menu.sks
+Targhan - Wunderbar.sks
+Tom&Jerry - Boules Et Bits (Extended).sks
+Tom&Jerry - From Scratch - Part 1.sks
+Tom&Jerry - From Scratch - Part 2.sks
+Tom&Jerry - From Scratch - Part 3.sks
+Tom&Jerry - From Scratch - Part 4.sks
+Tom&Jerry - Le Crime Du Parking - End Game.sks
+Tom&Jerry - Le Crime Du Parking - Intro.sks
+Tom&Jerry - Sudoku - Menu.sks
+Tom&Jerry - Sudoku - Notice.sks
+Tom&Jerry - Sudoku - Sundat.sks
+Tom&Jerry - Sudoku - Theme 1.sks
+Tom&Jerry - Sudoku - Theme 2.sks
+Tom&Jerry - Sudoku - Victory.sks
+UltraSyd - Dead Floppy.sks
+UltraSyd - Fractal.sks
+UltraSyd - Robot.sks
+Ultrasyd - Morons.sks
+SoundEffects.aks
+Totta - Mellow (MSX).aks
+Giherem - Bancaloide.aks
+
+# Not clean - the rendering discrepancy in docs/akm-open-questions.md:
+# FenyxKell - KellyOn.sks
+# FenyxKell - Spectrum Castle.sks
+# PulkoMandy - Renegade Remix.sks
+# Targhan - Midline Process - Carpet.sks
+# Targhan - Orion Prime - Introduction.sks
+# Targhan - Orion Prime - Level 4 - Theme 2.sks
+# Targhan - Star Sabre - Ingame.sks
+# UltraSyd - Fuck It.sks
+# UltraSyd - The End.sks
+# UltraSyd - YM Type.sks
+# Playing with effects.aks
+# Targhan - A Harmless Grenade.aks
+# Targhan - Crtc - End part.aks
+# Targhan - Crtc.aks
+# Targhan - Hocus Pocus.aks
+# Totta - Crawlers (MSX).aks
+# Totta - Hardy (MSX).aks
+# Totta - Rezzy (MSX).aks
+# Andy Severn - Lop Ears.aks
+# Doclands - GinFizz.aks
+# Ok3anos - Cpc Dream.aks
+# Targhan - Aganamemnon (soft drums version).aks
+# Acid_demo_07.aks
+# Acid_demo_21.aks
+# EDGEA.SKS
+
+# Not a 1 MHz PSG, so the CPC period table is knowingly wrong for them.
+# See docs/akm-open-questions.md, "The Atari ST and MSX tunes".
+# Excellence in Art 2018 - Just add cream (ST).aks 2000000 Hz
+# Totta - BaraBadaBastu.aks                      1773400 Hz
+# Totta - Room5 (MSX).aks                        1773400 Hz
+# Doclands - Buzz-o-Meter (ST).aks               2000000 Hz
+# Doclands - Pong Cracktro (ST).aks              2000000 Hz
+# Doclands - Slowly But (ST).aks                 2000000 Hz
+# Doclands - The Rivals (ST).aks                 2000000 Hz
+# Doclands - The Saga (ST).aks                   2000000 Hz
+# Doclands - Tiny Things (ST).aks                2000000 Hz
+# Doclands - Truly Yours (ST).aks                2000000 Hz
+# Doclands - Your Credits (ST).aks               2000000 Hz

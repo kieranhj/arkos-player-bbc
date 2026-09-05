@@ -17,7 +17,19 @@ player; both demo discs build and run in jsbeeb. The README carries the results.
   turn out to want.
 - **Listening**: not done, and it is the point of all of it. `verify.py --snf`, then
   `tools/sn2wav.py`, against Arkos's own `SongToWav.exe` render of the same tune.
-- **AKM**: not started, and now the clearest next move. `docs/porting.md` has the route.
+- **AKM**: step 1 done, step 2 under way. The format is PROVED understood - not just
+  believed - by a second oracle AKL never had: `SongToAkm` annotates every byte it
+  exports, and `tools/verify/akm_source_check.py` holds the reference's decode against
+  that annotation. **74 songs, 48,201 checks, 0 disagreements**, covering the note, the
+  instrument, the wait, all eight effects, every instrument cell's volume and the
+  linker's track pointers, heights and speed changes. Against `SongToYm`, 39 of the 64
+  CPC-clock songs are clean or differ only by AKM's inherent six-note +1.
+  `lib/akmplayer.asm` is verified on that corpus, listed in
+  `tools/verify/akm_known_good.txt`. **Two things are parked in
+  `docs/akm-open-questions.md`**: a rendering discrepancy on the other 25 songs (traced
+  in full, cause narrowed to line timing rather than decode, not explained), and the
+  eleven Atari ST and MSX tunes, which need only a different period table and would
+  exercise SoftAndHard - the one path nothing in the CPC corpus reaches.
 - **edge-beeb**: not yet updated to take `lib/` as a verbatim copy (decision 4).
 - **Targhan**: not yet contacted — to thank him, to confirm the demo-tune choice, and to report
   the AT2 AKL exporter fault and the AT2/AT3 replay difference.

@@ -120,20 +120,26 @@ That was the story, and the fidelity work has largely closed it.
 `tools/compare_streams.py` decodes both streams to the chip's *state* at
 the end of each frame and compares only what could be heard:
 
-| | tone period exact | volume exact | noise byte exact |
-|---|--:|--:|--:|
-| Rhino, Acid Demo 21 (no envelope) | 100.0% | 23.5% | 100.0% |
-| EDGEA (32% envelope) | 97.8% | 28.7% | 100.0% |
+| | tone period | tone volume | noise byte | noise volume |
+|---|--:|--:|--:|--:|
+| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** | 44.2% |
+| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** | 13.1% |
 
 against 63.9% / ~25% and 3.6% / 5.9% before it. The periodic bass lands on
 **99.9% of the frames ym2sn puts it on**, and never on one it does not —
 6,165 of ym2sn's 6,173 on Rhino's tune, 13,600 of 13,608 on EDGEA — which
 is a runtime picker with no lookahead agreeing with a whole-song analysis.
 
-The volume column is the one still wide open, and it is **not** the
-envelope: `ym_sn_vol` is the dB-faithful mapping and ym2sn's default is a
-plain halving that spreads the AY's 23 dB over the SN's 30. That is a
-decision, not an error, and it is written up in `fidelity-plan.md`.
+**The volume columns are what is left**, and only part of it is the
+envelope. Three things, all written up in `fidelity-plan.md` and none of
+them changed yet, because between them they move the level of every note in
+every build: `ym_sn_vol` is the dB-faithful mapping where ym2sn's default is
+a plain halving; the 4-bit to 5-bit widening differs by a step on even
+volumes; and **the drums come out 2 to 5 SN steps - 4 to 10 dB - louder
+than ym2sn's**, because ym2sn mixes the noise at a share of each open
+channel's amplitude and `ay2sn` takes the loudest channel whole. The first
+two together are worth 100.0% of tone volumes on Rhino's tune. The third is
+its own question and is the likeliest of the three to be heard.
 
 So what this library gives you is close to what the offline chain gives
 you, and no longer a different arrangement of it. Render both and listen:

@@ -467,15 +467,15 @@ The remainder is frames wanting two voices at once, not frames B1 got wrong.
 `tools/compare_streams.py` holds the runtime stream against ym2sn's offline
 one, decoded to the chip's *state* at the end of each frame. With B1 on:
 
-| | tone period | volume | noise byte |
-|---|--:|--:|--:|
-| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** |
-| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** |
+| | tone period | tone volume | noise byte | noise volume |
+|---|--:|--:|--:|--:|
+| Rhino, Acid Demo 21 (no envelope) | **100.0%** | 23.5% | **100.0%** | 44.2% |
+| EDGEA (32% envelope) | 97.8% | 28.7% | **100.0%** | 13.1% |
 
-Periods and noise are done. **The volume column is one table and one line
-of code**, and it is not the envelope - Rhino's tune has no envelope at all.
+Periods and the noise byte are done. **The volume columns are not**, and
+they are not the envelope either - Rhino's tune has no envelope at all.
 
-Two differences, both against `ym2sn`'s *default* settings:
+Three differences, all against `ym2sn`'s *default* settings:
 
 1. **`ym_sn_vol`.** Ours is `trunc((31 - level) * 0.75 / 2)`, the
    dB-faithful mapping: the AY's ladder is -0.75 dB a step and the SN's is
@@ -490,12 +490,26 @@ Two differences, both against `ym2sn`'s *default* settings:
    `(v << 1) | (v & 1)` (`ym2sn.py:1312-1318`), duplicating the low bit.
    They differ on every even volume, by one step.
 
-**Measured**: making both changes takes Rhino's tune to **100.0% period,
-100.0% volume, 100.0% noise** - the runtime converter reproducing a
-whole-song offline analysis exactly - and EDGEA to 97.8% / 97.4% / 100.0%,
-the residual being the envelope, which is E2/E3's problem and nobody else's.
+3. **The drums are too loud.** `ay2sn` gives the noise channel the volume of
+   the loudest AY channel that has it open, whole. `ym2sn` sums a share of
+   each open channel's *amplitude* - `NOISE_MIX_SCALE = 1/3`, because on the
+   AY the noise is OR'd with the square wave and the channel carries both -
+   and converts the total. Measured, **every single drum frame is 2 to 5 SN
+   steps louder than ym2sn's**: on Rhino's tune 4 steps on 1,055 frames, 3
+   on 485 and 2 on 455; on EDGEA the same spread with a tail to 5. That is
+   4 to 10 dB, on every percussion hit in every tune. It is independent of
+   1 and 2 and is the likeliest of the three to be *heard* rather than
+   measured.
 
-It is not built, because it changes the volume of every note in every build,
-including Edge Grinder's `-Akl`, and that is KC's call and not a defect to
-be quietly fixed. Change 2 alone is a bug-shaped thing; change 1 alone gets
-Rhino to 54.9%. Both together are the 100%.
+**Measured**: changes 1 and 2 take Rhino's tune from 23.5% to **100.0%** of
+tone volumes - the runtime converter reproducing a whole-song offline
+analysis exactly on periods, tone volumes and the noise byte - and EDGEA
+from 28.7% to 97.4%, the residual there being the envelope, which is E2/E3's
+problem and nobody else's. Change 1 alone gets Rhino to 54.9%; change 2 is
+the other half. Change 3 is untouched by either: the drum frames stay 2 to 3
+steps loud.
+
+None of it is built, because it changes the level of every note in every
+build, including Edge Grinder's `-Akl`, and that is a decision rather than a
+defect to be quietly fixed. `tools/compare_streams.py` reports all four
+columns, so whichever way it goes the number is there.

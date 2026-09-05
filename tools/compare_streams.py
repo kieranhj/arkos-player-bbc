@@ -68,7 +68,9 @@ def main():
     audible = [0, 0, 0]         # frames where the reference has this channel on
     same_p = [0, 0, 0]
     same_v = [0, 0, 0]
-    noise_same = noise_frames = 0
+    noise_same = noise_vol_same = noise_frames = 0
+    bass_vol_bad = drum_vol_bad = 0
+    drum_delta = {}
     for i in range(n):
         for ch in range(3):
             if b[i][3 + ch] == 15:
@@ -78,10 +80,17 @@ def main():
                 same_p[ch] += 1
             if a[i][3 + ch] == b[i][3 + ch]:
                 same_v[ch] += 1
-        if b[i][6] != 15:
+        if b[i][6] != 15 or a[i][6] != 15:
             noise_frames += 1
             if a[i][7] == b[i][7]:
                 noise_same += 1
+            if a[i][6] == b[i][6]:
+                noise_vol_same += 1
+            elif b[i][7] == 3:
+                bass_vol_bad += 1
+            else:
+                drum_vol_bad += 1
+                drum_delta[a[i][6] - b[i][6]] =                     drum_delta.get(a[i][6] - b[i][6], 0) + 1
 
     print()
     print('             audible   period exact   volume exact')
@@ -93,8 +102,21 @@ def main():
     print('  ALL        %7d   %6.1f%%        %6.1f%%'
           % (sum(audible), 100.0 * sum(same_p) / tot, 100.0 * sum(same_v) / tot))
     print()
-    print('  noise byte identical on %d of %d sounding frames (%.1f%%)'
-          % (noise_same, noise_frames, 100.0 * noise_same / max(noise_frames, 1)))
+    print('  noise channel, %d sounding frames:' % noise_frames)
+    print('     the noise byte (rate and feedback) identical on %d (%.1f%%)'
+          % (noise_same, 100.0 * noise_same / max(noise_frames, 1)))
+    print('     its volume identical on %d (%.1f%%)'
+          % (noise_vol_same, 100.0 * noise_vol_same / max(noise_frames, 1)))
+    if bass_vol_bad or drum_vol_bad:
+        print('     of the rest: %d are the periodic bass, %d are drums'
+              % (bass_vol_bad, drum_vol_bad))
+    if drum_delta:
+        # ym2sn mixes the noise at a share of each open channel's AMPLITUDE
+        # (NOISE_MIX_SCALE); ay2sn takes the loudest open channel whole. So
+        # our drums come out louder, and this says by how much. Negative is
+        # a lower attenuation, which is louder.
+        print('     drum loudness, ours minus ym2sn in SN steps (-2 dB each): %s'
+              % dict(sorted(drum_delta.items())))
 
     # The bass: how often do the two agree that the noise channel is carrying
     # a note rather than a drum? That is the single decision B1 has to make

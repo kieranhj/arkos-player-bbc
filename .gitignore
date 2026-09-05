@@ -1,0 +1,8 @@
+build/
+example/build/
+tools/verify/build/
+__pycache__/
+*.pyc
+*.ssd
+*.SSD
+bin/

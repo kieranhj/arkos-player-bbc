@@ -72,17 +72,7 @@ player, which is verified on the 39 songs in
 build verifies on the ST tunes the way the CPC build does on its 39; and
 SoftAndHard has run.
 
-## 4. edge-beeb takes `lib/` as a verbatim copy
-
-Decision 4, not yet done. edge-beeb's `MUSIC_AKL` build still carries its own
-copy of the player; this library is upstream and edge-beeb should never edit
-it — the same treatment edge-beeb's own `lib/vgiplayer.asm` already gets.
-
-*Accepts when*: edge-beeb's `lib/aklplayer.asm` is byte-identical to this
-repo's, its build still assembles, and `PROVENANCE.md` there says where it
-came from.
-
-## 5. Write to Targhan
+## 4. Write to Targhan
 
 Not done. There is more to say now than when it was first noted:
 

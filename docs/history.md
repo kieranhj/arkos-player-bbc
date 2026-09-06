@@ -185,6 +185,36 @@ the same failure one level up: a *tune* nothing had played. The corpus sweep
 that followed says 61 of the 62 songs AT2 can export are fine, so the fault is
 rare - which is exactly why it needed a check rather than a memory.
 
+### 10. edge-beeb took the library back, and it is the first host that is not us
+
+Decision 4 said edge-beeb would carry `lib/` as a verbatim copy and it sat undone
+while the library moved: the write cache, the periodic bass, `BASS_MODE`. It is
+done now (2026-09-06), and the port took `BASS_MODE = 2` and both of the CPC's
+tunes with it.
+
+**Two things the API got right only by accident, and one it got right on purpose.**
+
+The copies' own `INCLUDE "lib/..."` lines are written relative to a repo root, so
+`lib/ay2sn.asm` asking for `lib/ay2sn_tables.asm` resolves in either repository
+with no change at all. That is what makes a copy a copy rather than a fork, and
+it was not designed - it fell out of assembling from the repo root. It is worth
+keeping deliberately now.
+
+`aklplayer.h.asm` being a separate file the host INCLUDEs inside its own zero
+page turned out to matter: edge-beeb had transcribed those 22 bytes by hand, and
+the transcription was still correct only because nothing had moved in months.
+
+And `ENV_BASE` and `BASS_MODE` not being defaulted (decisions 9 and 10) is what
+made the update safe. The host had to state both, in its own file, next to a
+comment saying why - which is exactly what a host forgetting either would have
+got wrong silently.
+
+**What the update cost the game**, and this is the honest half: 2,494 cycles a
+call against the old copy's 2,162. The cache gives back less than the bass takes,
+and edge-beeb's worst frame was already at 108%. `BASS_MODE = 0` is one constant
+away at 1,851 if it ever matters more than the bass does - which is the whole
+argument for the constant existing.
+
 ---
 
 ## What was believed at the start and turned out wrong

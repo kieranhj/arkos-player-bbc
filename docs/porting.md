@@ -81,6 +81,10 @@ export, add the entry point, and the harness does the rest.
 Note that AKM shares AKL's envelope limitation — only shapes 8 and 0xa — so
 whatever `ENV_BASE` does for AKL, an AKM player will need too.
 
+**AKG would not need it at all.** It carries the true envelope shape, which is
+the one fidelity gap AKL and AKM share — and it is now the only Arkos format
+with no 6502 player anywhere.
+
 ## Multiple PSGs
 
 A six-channel Arkos song carries two PSGs, and a BBC has one sound chip.

@@ -7,7 +7,7 @@ work that has not been done.
 - [`docs/history.md`](docs/history.md) — how it got built, and what the plan
   got wrong on the way
 - [`docs/decisions.md`](docs/decisions.md) — KC's decisions, binding
-- `README.md` — what it is, the measured tables, the API
+- `README.md` — what it is, the API, and which format to pick
 
 Each item below has an acceptance test. Nothing is believed without one.
 

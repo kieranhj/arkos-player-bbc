@@ -170,4 +170,4 @@ with a V1 exporter**.
   port it. There is one now.
 - *"AKM beats AKL."* Its data does, on every tune. Its player is 549 bytes
   bigger and it costs more per call, so on a short tune AKL still wins. See
-  the README's tables.
+  the tables in `performance.md`.

@@ -63,7 +63,7 @@ square wave costing no musical channel. **Mode 2**, the periodic-noise
 bass: `ym2sn`'s own trick, the noise generator with its feedback bit clear
 clocked by tone generator 3, costing no timer and no interrupt but giving
 the channel up whenever a drum wants it. One voice either way, sticky to
-its channel. See the README and `fidelity-plan.md`.
+its channel. See below, and `fidelity-plan.md`.
 
 ### 2. Noise rate 3 — FIXED, and it was never a drum
 
@@ -107,6 +107,59 @@ and keeps sampling when it is slower. About 15 cycles.
 Note that the whole envelope model — the constant's threshold and the
 `env_recip` table — assumes the player is called **50 times a second**. A
 25 Hz host must double both.
+
+## Choosing `bass_mode`, and wiring mode 1
+
+The SN76489's lowest note is 122 Hz, and between a third and nearly half of
+every tune measured goes below it. `bass_mode` picks what happens to those
+notes:
+
+| `bass_mode` | | interrupts | costs |
+|--:|---|---|---|
+| **0** | shift them up an octave | none | the tune's bass line |
+| **1** | **software bass**: park the channel's tone at an inaudible 125 kHz and bit-bang the note in the volume domain from a VIA timer — a real square wave | a VIA timer, 102–157 IRQ/s | nothing musical |
+| **2** | **periodic noise**: the SN's noise generator with the feedback bit clear is a 1/15 duty pulse train clocked by tone generator 3, so tone 3's period sets the pitch and the whole bass register is in reach. This is what `ym2sn.py` does | **none** | the drums, while it plays |
+
+Mode 2 needs nothing from the host but `bass_mode = 2`. It is the default on
+all five demo discs, it is the one to reach for on a host that cannot spare a
+timer or tolerate extra interrupts, and it is **the only bass path the
+simulator can test**, py65 having no VIA.
+
+Mode 1 is off until the host wires it up, because it needs an interrupt:
+
+1. put **User VIA T1 in free-run** (ACR bit 6 set, bit 7 clear) so it reloads
+   itself;
+2. call `bass_irq` when User VIA T1 interrupts — and **test the flag against
+   the enable**, `lda IFR : and IER : and #&40`. Masking a VIA interrupt does
+   not stop its timer, so bit 6 goes on being set while T1 is disabled, and
+   testing IFR alone services the bass on the back of every other interrupt in
+   the machine. That mistake cost an afternoon: it made mute not mute and the
+   bass crackle. The full account is in
+   [`fidelity-plan.md`](fidelity-plan.md);
+3. set `bass_mode` to 1.
+
+Do not take the System VIA's T1: it is the MOS's own 100 Hz tick, and taking
+it breaks the OS.
+
+Which to choose is the drums against the interrupts. Mode 2 gives the voice up
+whenever a drum wants the noise channel, which over the 75-song corpus is
+**10% of the median song's bass calls** (mean 15%, seven songs above 40%);
+mode 1 never does. Against that, mode 2 costs no timer at all, and per call it
+is only 105–147 cycles dearer than mode 1 (EDGEA 2,389 against 2,494, Orion
+Prime L4 2,307 against 2,454) — which is less than mode 1's interrupts cost on
+top.
+
+**There is one voice either way**, and it is sticky — the channel holding it
+keeps it while it still wants it, because choosing the lowest-numbered
+claimant each call made it hop 25 times a second on a tune where two channels
+play the same low note. One voice covers 99.5% of Rhino's below-floor notes,
+81.5% of EDGEA's and 78.7% of Dead On Time's, but over the corpus **30 songs
+want three simultaneous bass voices and 26 want two**, so it is a real
+limitation; the rest octave-shift as before.
+
+`akl_silence` stops the bass as well as the four channels, so muting really
+mutes. The bass is only as steady as the interrupt latency — measured at about
+±1% within a note.
 
 ## Why this is not "the same tune, smaller"
 

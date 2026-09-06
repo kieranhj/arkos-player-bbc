@@ -82,7 +82,51 @@ it — the same treatment edge-beeb's own `lib/vgiplayer.asm` already gets.
 repo's, its build still assembles, and `PROVENANCE.md` there says where it
 came from.
 
-## 5. Write to Targhan
+## 5. Fix the bass at build time
+
+Not started, and measured before being proposed: `tools/profile_player.py`,
+AKL on Acid Demo 21, 100 frames, py65 at 2 MHz, each build running the
+identical frames.
+
+| build | bytes | mean cycles |
+|---|--:|--:|
+| as committed, `bass_mode 2` | 3,685 | 2,111 |
+| mode 2 fixed, the five dispatch tests removed | 3,655 | 2,102 |
+| **mode 2 fixed, the software voice deleted** | **3,457** | **2,071** |
+| as committed, `bass_mode 0` | 3,685 | 1,988 |
+| **no bass at all, the code deleted** | **3,079** | **1,870** |
+
+**The cycles are not the reason.** Deleting all five `lda bass_mode` tests is
+worth 9 cycles a call, 0.4%, and would not be worth a constant on its own.
+
+**The bytes are.** 228 to drop the software voice from a periodic-only host,
+and **606 - 16% of the AKL image - to drop the bass altogether**. Against a
+library whose whole case is total RAM, and next to the 73 bytes the write
+cache cost for 5-10% of the frame, that is a large number to be spending on
+paths a given host will never take. Every disc here defaults to `bass_mode 2`
+and carries the software voice, its interrupt handler, its timer code and
+eight bytes of workspace for nothing.
+
+**And `bass_mode 0` is not free.** A host that wants no bass still pays **118
+cycles a call, 5.9%**: `bass_pick` is called and early-outs, `bass_update` and
+`bass_stop` run to the end of every frame, `sn_chan` asks `cpx bass_skip` per
+channel, and the channel loop tests `cpx bass_want` on every below-floor note.
+
+The shape of the answer: conditional assembly on a `BASS_MODE` constant,
+defaulting to the present runtime behaviour so no existing host breaks - the
+same shape as `ENV_BASE`, which is already the host's to define. It adds a
+second host-facing constant, so it wants a row in
+[`docs/decisions.md`](docs/decisions.md) before it is built. Note that
+`example/demo.asm`'s **B** key cannot work in a fixed build, so the demo keeps
+the runtime form; it is the only thing here that ever changes mode.
+
+*Accepts when*: a `BASS_MODE`-fixed build assembles for each of 0, 1 and 2; the
+default build is byte-identical to today's; `tools/verify/chip_state.py`
+reports the fixed build chip-state identical to the runtime one over the
+corpus; and the bytes and cycles above are re-measured and written into
+[`docs/performance.md`](docs/performance.md).
+
+## 6. Write to Targhan
 
 Not done. There is more to say now than when it was first noted:
 

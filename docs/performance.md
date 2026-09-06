@@ -149,6 +149,44 @@ Ranked by cycles per unit of risk. None of these is started.
 | F | `div15` | ~80 on hit **(estimate)** | low | 86–152 cycles a call, and the bass note usually does not change between calls. A two-byte input compare (~10 cycles) would skip it on a sustained note. Pure RAM-for-cycles: 4 bytes. |
 | G | all three | 155–216 **(measured ceiling)** | high | Zero page. See below — the ceiling is real but unreachable in full. |
 | H | AKY | ~70 **(estimate)** | low | `ay_put` costs 33 cycles a register write including the caller's `sta ay_sel`. `sty tmp : ldy aky_amp,x : sta ay_regs,y : ldy tmp` is 15. The player's own header already says to do this "if it ever matters". |
+| I | all three | 9-118 **(measured)**, and 228-606 BYTES | low | Fix `bass_mode` at assembly time instead of testing it every call. The cycles are small; the bytes are not. Measured below. |
+
+### Fixing the bass at build time - measured, not built
+
+`bass_mode` is read five times a call: the noise path, twice in `bass_pick`,
+once in `bass_claim` and once in `bass_update`. Four builds were patched by
+hand and profiled on the identical 100 frames (AKL, Acid Demo 21), then thrown
+away; the periodic-only one was checked with
+`verify.py --player aky --bass 2` first - **audible mismatches NONE**, the
+voice claimed on 4,612 of 9,600 calls, tone 3's period equal to `ym2sn`'s
+`round(2p/15)` on every one, zero redundant noise writes.
+
+| build | bytes | mean cycles | saving |
+|---|--:|--:|---|
+| as committed, `bass_mode 2` | 3,685 | 2,111 | - |
+| mode 2 fixed, the five tests removed | 3,655 | 2,102 | 30 bytes, **9 cycles** |
+| mode 2 fixed, software voice deleted | 3,457 | 2,071 | 228 bytes, **40 cycles** |
+| as committed, `bass_mode 0` | 3,685 | 1,988 | - |
+| no bass at all, code deleted | 3,079 | 1,870 | **606 bytes**, **118 cycles** |
+
+**The dispatch itself is 9 cycles a call, 0.4%** - five loads and their
+branches, and not a reason to do anything. Most of the 40 in the fuller mode-2
+build is `bass_update`'s software half and `bass_stop`, which run every call
+to maintain a timer a periodic-only host does not have.
+
+**The size is the finding.** 606 bytes is 16% of the AKL image, and every disc
+here defaults to `bass_mode 2` while carrying the software voice, `bass_irq`,
+the timer code and eight bytes of workspace it will never execute.
+
+**And mode 0 is not free**: a host that wants no bass at all still pays 118
+cycles a call for the option, because `bass_pick` is still called, `bass_update`
+and `bass_stop` still run to the end of every frame, `sn_chan` still asks
+`cpx bass_skip` per channel, and the channel loop still tests `cpx bass_want`
+on every below-floor note.
+
+It is `PLAN.md` item 5, with the acceptance test. It needs a `docs/decisions.md`
+row first, because it adds a second host-facing constant beside `ENV_BASE` -
+and because `example/demo.asm`'s B key cannot work in a fixed build.
 
 ### On inlining, and on the branches and jumps
 

@@ -14,7 +14,9 @@
 \ * architecture, and this file is the smallest demonstration of it.
 \ ******************************************************************
 
-\ ENV_BASE is the song's, not the player's - verify.py passes it in.
+\ ENV_BASE is the song's, not the player's - verify.py passes it in,
+\ and so is BASS_MODE: -1 keeps every bass path, as a host that
+\ chooses at run time gets. verify.py --fixed builds the other three.
 ORG &70
 IF PLAYER_AKY
 INCLUDE "lib/akyplayer.h.asm"

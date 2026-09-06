@@ -120,7 +120,14 @@ notes:
 | **1** | **software bass**: park the channel's tone at an inaudible 125 kHz and bit-bang the note in the volume domain from a VIA timer — a real square wave | a VIA timer, 102–157 IRQ/s | nothing musical |
 | **2** | **periodic noise**: the SN's noise generator with the feedback bit clear is a 1/15 duty pulse train clocked by tone generator 3, so tone 3's period sets the pitch and the whole bass register is in reach. This is what `ym2sn.py` does | **none** | the drums, while it plays |
 
-Mode 2 needs nothing from the host but `bass_mode = 2`. It is the default on
+**Which voices exist at all is `BASS_MODE`, an assembly-time constant the
+host defines** (decision 10): `-1` assembles all three and lets the host store
+into `bass_mode` at run time, `0`, `1` or `2` assemble one and give the rest of
+the bytes back - 589 of them for no bass, 217 for the periodic voice alone.
+`docs/performance.md` has the table. Everything below is about which voice to
+want.
+
+Mode 2 needs nothing from the host but `BASS_MODE = 2`. It is the default on
 all five demo discs, it is the one to reach for on a host that cannot spare a
 timer or tolerate extra interrupts, and it is **the only bass path the
 simulator can test**, py65 having no VIA.

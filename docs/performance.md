@@ -149,44 +149,52 @@ Ranked by cycles per unit of risk. None of these is started.
 | F | `div15` | ~80 on hit **(estimate)** | low | 86–152 cycles a call, and the bass note usually does not change between calls. A two-byte input compare (~10 cycles) would skip it on a sustained note. Pure RAM-for-cycles: 4 bytes. |
 | G | all three | 155–216 **(measured ceiling)** | high | Zero page. See below — the ceiling is real but unreachable in full. |
 | H | AKY | ~70 **(estimate)** | low | `ay_put` costs 33 cycles a register write including the caller's `sta ay_sel`. `sty tmp : ldy aky_amp,x : sta ay_regs,y : ldy tmp` is 15. The player's own header already says to do this "if it ever matters". |
-| I | all three | 9-118 **(measured)**, and 228-606 BYTES | low | Fix `bass_mode` at assembly time instead of testing it every call. The cycles are small; the bytes are not. Measured below. |
+| ~~I~~ | all three | **DONE**: -589 bytes, -120 cycles | - | `BASS_MODE` fixed at assembly time - decision 10, and the section below. |
 
-### Fixing the bass at build time - measured, not built
+### Fixing the bass at build time - BUILT
 
-`bass_mode` is read five times a call: the noise path, twice in `bass_pick`,
-once in `bass_claim` and once in `bass_update`. Four builds were patched by
-hand and profiled on the identical 100 frames (AKL, Acid Demo 21), then thrown
-away; the periodic-only one was checked with
-`verify.py --player aky --bass 2` first - **audible mismatches NONE**, the
-voice claimed on 4,612 of 9,600 calls, tone 3's period equal to `ym2sn`'s
-`round(2p/15)` on every one, zero redundant noise writes.
+`bass_mode` was read five times a call: the noise path, twice in `bass_pick`,
+once in `bass_claim` and once in `bass_update`. It is now **`BASS_MODE`, an
+assembly-time constant the host defines** (decision 10), and the paths it
+cannot reach are not assembled. `-1` keeps all three and lets the host choose
+at run time as before.
 
-| build | bytes | mean cycles | saving |
-|---|--:|--:|---|
-| as committed, `bass_mode 2` | 3,685 | 2,111 | - |
-| mode 2 fixed, the five tests removed | 3,655 | 2,102 | 30 bytes, **9 cycles** |
-| mode 2 fixed, software voice deleted | 3,457 | 2,071 | 228 bytes, **40 cycles** |
-| as committed, `bass_mode 0` | 3,685 | 1,988 | - |
-| no bass at all, code deleted | 3,079 | 1,870 | **606 bytes**, **118 cycles** |
+| `BASS_MODE` | bytes | vs runtime | mean cycles | vs runtime |
+|---|--:|--:|--:|--:|
+| **-1**, chosen at run time | 3,685 | - | - | - |
+| **0**, no bass | **3,096** | **-589** | 1,851 | **-120 (-6.1%)** |
+| **1**, software voice only | 3,426 | -259 | 2,109 | -28 (-1.3%) |
+| **2**, periodic noise only | 3,468 | -217 | 2,174 | -39 (-1.8%) |
 
-**The dispatch itself is 9 cycles a call, 0.4%** - five loads and their
-branches, and not a reason to do anything. Most of the 40 in the fuller mode-2
-build is `bass_update`'s software half and `bass_stop`, which run every call
-to maintain a timer a periodic-only host does not have.
+Bytes from beebasm's own label dump; cycles from `chip_state.py --fixed`, AKL
+on EDGEA, 300 frames, each fixed build against the runtime build set to the
+same voice.
 
-**The size is the finding.** 606 bytes is 16% of the AKL image, and every disc
-here defaults to `bass_mode 2` while carrying the software voice, `bass_irq`,
-the timer code and eight bytes of workspace it will never execute.
+**The bytes are the point, not the cycles.** The five tests together are about
+9 cycles a call, which would not have been worth a constant. 589 bytes is 16%
+of the AKL image, and every disc here defaults to the periodic voice while
+carrying the software one, `bass_irq`, the timer code and its workspace for
+nothing.
 
-**And mode 0 is not free**: a host that wants no bass at all still pays 118
-cycles a call for the option, because `bass_pick` is still called, `bass_update`
-and `bass_stop` still run to the end of every frame, `sn_chan` still asks
-`cpx bass_skip` per channel, and the channel loop still tests `cpx bass_want`
-on every below-floor note.
+**And a host that wants no bass was paying 120 cycles a call for the option** -
+`bass_pick` called and early-outing, `bass_update` and `bass_stop` running to
+the end of every frame, `cpx bass_skip` in `sn_chan`, `cpx bass_want` on every
+below-floor note. That was the surprise, and it is the one figure here that
+changes what a host should do.
 
-It is `PLAN.md` item 5, with the acceptance test. It needs a `docs/decisions.md`
-row first, because it adds a second host-facing constant beside `ENV_BASE` -
-and because `example/demo.asm`'s B key cannot work in a fixed build.
+The acceptance test is that choosing in the assembler leaves the chip in
+exactly the state choosing at run time does:
+
+```
+python tools/verify/chip_state.py --fixed --player akl --song EDGEA.SKS --bass 2
+  1 identical, 0 differ, over 300 frames each.
+  mean 2213 -> 2174 cycles a call (-1.8%)
+```
+
+and that `BASS_MODE = -1` assembles to the same bytes as the build before the
+constant existed, which it does: `cmp` of the two images is clean.
+
+`example/demo.asm` stays on `-1`, because its B key cycles the three by ear.
 
 ### On inlining, and on the branches and jumps
 

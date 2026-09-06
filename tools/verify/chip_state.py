@@ -50,7 +50,7 @@ import verify                                                   # noqa: E402
 SPINE = os.path.join(ROOT, 'lib', 'ay2sn.asm')
 
 
-def chip_states(song, player, frames, bass):
+def chip_states(song, player, frames, bass, fixed=-1):
     """(state per frame, bytes written, mean cycles a call).
 
     The state is the eight SN registers: three tone periods, three tone
@@ -58,7 +58,7 @@ def chip_states(song, player, frames, bass):
     has never been written, which is itself a difference worth seeing.
     """
     env_base = (arkos.envelope_base(song) if player in ('akl', 'akm') else 8)
-    img, lab, _, _ = verify.build(song, player, env_base)
+    img, lab, _, _ = verify.build(song, player, env_base, fixed)
     mem = ObservableMemory()
     for i, b in enumerate(img):
         mem[verify.LOAD + i] = b
@@ -80,7 +80,8 @@ def chip_states(song, player, frames, bass):
 
     mpu.a, mpu.x, mpu.y = verify.SIM_SONG & 0xFF, verify.SIM_SONG >> 8, 0
     call(lab['%s_init' % player])
-    mem[lab['bass_mode']] = bass
+    if fixed < 0:
+        mem[lab['bass_mode']] = bass    # a fixed build has nothing to choose
 
     state, out, nbytes, cycles = {}, [], 0, 0
     for _ in range(frames):
@@ -102,6 +103,19 @@ def chip_states(song, player, frames, bass):
                 i += 1
         out.append(tuple(state.get(r) for r in range(8)))
     return out, nbytes, cycles / float(frames)
+
+
+def compare_fixed(song, player, frames, bass):
+    """BASS_MODE fixed at `bass` against the runtime build set to the same.
+
+    The acceptance test for the assembly-time bass: choosing a voice in the
+    assembler must leave the chip in exactly the state choosing it at run time
+    does, frame for frame. Only the bytes and the cycles may move.
+    """
+    now, n_now, c_now = chip_states(song, player, frames, bass, fixed=bass)
+    was, n_was, c_was = chip_states(song, player, frames, bass, fixed=-1)
+    bad = [f for f in range(frames) if now[f] != was[f]]
+    return bad, (n_was, n_now), (c_was, c_now), (now, was)
 
 
 def compare(song, player, frames, bass, baseline):
@@ -153,6 +167,9 @@ def main():
                     help='the git revision to compare lib/ay2sn.asm against')
     ap.add_argument('--corpus', action='store_true',
                     help='every song in akm_known_good.txt, as AKM')
+    ap.add_argument('--fixed', action='store_true',
+                    help='compare a BASS_MODE-fixed build against the runtime '
+                         'one at the same --bass, instead of against git')
     args = ap.parse_args()
 
     songs = corpus_songs() if args.corpus else [args.song]
@@ -161,8 +178,12 @@ def main():
     tot_was = tot_now = 0.0
     for song in songs:
         try:
-            bad, (n_was, n_now), (c_was, c_now), (now, was) = compare(
-                song, player, args.frames, args.bass, args.baseline)
+            if args.fixed:
+                bad, (n_was, n_now), (c_was, c_now), (now, was) = compare_fixed(
+                    song, player, args.frames, args.bass)
+            else:
+                bad, (n_was, n_now), (c_was, c_now), (now, was) = compare(
+                    song, player, args.frames, args.bass, args.baseline)
         except Exception as e:                          # noqa: BLE001
             sys.stderr.write('  FAILED %s: %s\n' % (os.path.basename(song), e))
             diff += 1

@@ -114,8 +114,13 @@ def aky_psgs(path):
     return (open(path, 'rb').read()[1] + 2) // 3
 
 
-def build(song, player, env_base):
-    """Export the song at SIM_SONG and assemble the real lib/ sources around it."""
+def build(song, player, env_base, fixed=-1):
+    """Export the song at SIM_SONG and assemble the real lib/ sources around it.
+
+    `fixed` is BASS_MODE: -1 keeps every bass path and lets the caller choose
+    at run time, which is what the demo does and what these checks use unless
+    --fixed says otherwise. 0, 1 or 2 assemble that one voice and nothing else.
+    """
     path, size = export_song(song, player, SIM_SONG)
     labels = os.path.join(BUILD, 'labels.txt')
     subprocess.run([beebasm(), '-i', 'tools/verify/sim.asm',
@@ -123,6 +128,7 @@ def build(song, player, env_base):
                     '-D', 'PLAYER_AKY=%d' % (player == 'aky'),
                     '-D', 'PLAYER_AKM=%d' % (player == 'akm'),
                     '-D', 'ENV_BASE=%d' % env_base,
+                    '-D', 'BASS_MODE=%d' % fixed,
                     '-d', '-labels', labels],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     lab = eval(re.sub(r'(\d+)L', r'\1', open(labels).read()))[0]
@@ -199,6 +205,9 @@ def main():
     ap.add_argument('--frames', type=int, default=0,
                     help='stop after N frames (default: the whole tune)')
     ap.add_argument('--snf', help='also capture the SN76489 writes to this .snf')
+    ap.add_argument('--fixed', type=int, default=-1, choices=(-1, 0, 1, 2),
+                    help='BASS_MODE: assemble one bass voice instead of all '
+                         'three (-1, the default, is the runtime choice)')
     ap.add_argument('--bass', type=int, default=0, choices=(0, 1, 2),
                     help='bass_mode: 0 octave-shift, 1 software (needs a VIA, '
                          'so it does nothing here), 2 periodic noise')
@@ -213,7 +222,8 @@ def main():
                 if args.player in ('akl', 'akm') else 8)
     akl_reference.ENV_BASE = env_base
     akm_reference.ENV_BASE = env_base
-    img, lab, songpath, songsize = build(args.song, args.player, env_base)
+    img, lab, songpath, songsize = build(args.song, args.player, env_base,
+                                         args.fixed)
     print('song:    %s' % os.path.relpath(args.song, ROOT))
     print('format:  %s, %d bytes' % (args.player.upper(), songsize))
     if args.player in ('akl', 'akm'):
@@ -273,10 +283,15 @@ def main():
     # periodic-noise voice, is pure ay2sn and runs here exactly as it runs
     # on the machine, which is why it gets checks 5 and 6 below and the
     # software voice never could.
-    mem[lab['bass_mode']] = args.bass
-    print('bass:    mode %d (%s)' % (args.bass,
+    if args.fixed < 0:
+        mem[lab['bass_mode']] = args.bass
+    else:
+        args.bass = args.fixed          # the build decided; nothing to store
+    print('bass:    mode %d (%s)%s' % (args.bass,
           ('octave shift', 'software - NOT simulated, needs a VIA',
-           'periodic noise')[args.bass]))
+           'periodic noise')[args.bass],
+          '' if args.fixed < 0 else ', FIXED at assembly time (BASS_MODE=%d)'
+          % args.fixed))
 
     ym, ymexe = oracle(args.song)
     if ym:

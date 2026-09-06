@@ -133,6 +133,11 @@ def build(player, song, title, disc=None):
         f.write('PLAYER_AKM = %d\n' % (player == 'akm'))
         f.write('REPLAY_DIV = %d\n' % div)
         f.write('ENV_BASE = %d\n' % env_base)
+        # The demo's B key cycles the three bass voices by ear, so it
+        # needs all of them: -1 is the runtime choice. A host that has
+        # picked one wants 0, 1 or 2 and the bytes back - see
+        # lib/ay2sn.asm's header and docs/performance.md.
+        f.write('BASS_MODE = -1\n')
         f.write('SONG_TRANSP0 = %d\n' % transp[0])
         f.write('SONG_TRANSP1 = %d\n' % transp[1])
         f.write('SONG_TRANSP2 = %d\n' % transp[2])

@@ -103,6 +103,9 @@ Four things, and they are all `example/demo.asm` does:
 
 ```
 ENV_BASE = 8                        \ 0. AKL only: the song's envelope pair
+BASS_MODE = 2                       \    and which bass voice to assemble:
+                                    \    -1 keeps all three and chooses at
+                                    \    run time, 0/1/2 fixes one
 ORG &70
 INCLUDE "lib/aklplayer.h.asm"       \ 1. the player's zero page (22 bytes;
                                     \    akyplayer/akmplayer are 25)
@@ -151,13 +154,20 @@ Five things a host gets wrong silently:
   tune's own volumes out fifty times a second, and crackles.
 
 **The bass.** The SN76489's lowest note is 122 Hz and a third to nearly half
-of every tune measured falls below it. `bass_mode 0` shifts those notes up an
-octave; **`bass_mode 2`, the default on all five discs, synthesises them with
-periodic noise** and needs nothing from the host but the assignment; `bass_mode
-1` bit-bangs a real square wave from a User VIA timer and needs an interrupt
-wired up. There is one bass voice either way and it is sticky. What each costs,
-and how to wire mode 1, is in
-[`docs/ay-to-sn.md`](docs/ay-to-sn.md#choosing-bass_mode-and-wiring-mode-1).
+of every tune measured falls below it. Mode **0** shifts those notes up an
+octave; **mode 2, the default on all five discs, synthesises them with periodic
+noise** and needs nothing from the host; mode **1** bit-bangs a real square wave
+from a User VIA timer and needs an interrupt wired up. There is one bass voice
+either way and it is sticky.
+
+**`BASS_MODE` picks it at assembly time and is not defaulted**, like
+`ENV_BASE`. Naming one is worth **589 bytes** if you want no bass at all and
+217 if you want the periodic voice — and a host that wants none pays 120 cycles
+a call for the option unless it says so. `BASS_MODE = -1` assembles all three
+and lets you store into `bass_mode` at run time, which is what the demo does so
+its B key can compare them by ear. What each costs, and how to wire mode 1, is
+in [`docs/ay-to-sn.md`](docs/ay-to-sn.md#choosing-bass_mode-and-wiring-mode-1);
+the sizes are in [`docs/performance.md`](docs/performance.md).
 
 **Six-channel songs** carry two PSGs and the BBC has one sound chip. `aky_init`
 reads the count out of the AKY header and plays the first, ignoring the rest —

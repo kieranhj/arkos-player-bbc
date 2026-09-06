@@ -52,6 +52,40 @@ ENV_MEAN_LEVEL  = 12
 \ period is 78 or less: 5120000 / 78 > 65536, one full turn of the phase.
 ENV_FULL_PERIOD = 78
 
+\ ******************************************************************
+\ * BASS_MODE IS THE HOST'S TO DEFINE, before it INCLUDEs this file,
+\ * exactly as ENV_BASE is. There is no default: BeebASM cannot ask
+\ * whether a symbol exists, so a host that forgets gets a build error
+\ * rather than a build it did not choose.
+\ *
+\ *   BASS_MODE = -1   the host chooses at RUN time, by storing 0, 1 or
+\ *                    2 into bass_mode. Every path is assembled. This is
+\ *                    what example/demo.asm wants, because its B key
+\ *                    cycles the three by ear.
+\ *   BASS_MODE = 0    no bass at all: notes below the chip's 122 Hz
+\ *                    floor come out an octave high, as they did before
+\ *                    any of this existed.
+\ *   BASS_MODE = 1    the software voice only. Needs the User VIA timer
+\ *                    wired up - see bass_irq below.
+\ *   BASS_MODE = 2    the periodic-noise voice only. Needs nothing.
+\ *
+\ * Measured, AKL on Acid Demo 21, 100 frames, py65 at 2 MHz:
+\ *
+\ *   -1 (runtime), bass_mode 2   3,685 bytes   2,111 cycles a call
+\ *    2 fixed                    3,4xx bytes   2,0xx
+\ *   -1 (runtime), bass_mode 0   3,685 bytes   1,988
+\ *    0 fixed                    3,0xx bytes   1,8xx
+\ *
+\ * The cycles are the small half: the five `lda bass_mode` tests are
+\ * about 9 cycles a call between them. The bytes are the point, and so
+\ * is the fact that a host wanting NO bass pays 118 cycles a call for
+\ * the option unless it says so here. docs/performance.md has both.
+\ ******************************************************************
+BASS_RT   = (BASS_MODE < 0)                 \ chosen at run time
+BASS_ANY  = (BASS_MODE <> 0)                \ any voice at all
+BASS_PER  = (BASS_MODE = 2) OR BASS_RT      \ periodic noise possible
+BASS_SOFT = (BASS_MODE = 1) OR BASS_RT      \ software voice possible
+
 .ay2sn
 {
     lda #255 : sta &fe43        \ DDRA once a call, not once a byte
@@ -99,13 +133,17 @@ ENV_FULL_PERIOD = 78
 
     lda #15                     \ nothing has the noise open yet
     sta noise_att
+IF BASS_ANY
     lda #255                    \ and no channel has claimed the bass
     sta bass_chan
     sta bass_skip
+ENDIF
     lda #0 : sta sn_slot+0      \ every channel on its own SN tone slot,
     lda #1 : sta sn_slot+1      \ until the periodic bass moves one
     lda #2 : sta sn_slot+2
+IF BASS_ANY
     jsr bass_pick               \ decide now which channel may take the voice
+ENDIF
 
     ldx #0
 .ch_loop
@@ -170,9 +208,11 @@ ENV_FULL_PERIOD = 78
     lda snper+1
     cmp #4
     bcc fit                     \ it fits: nothing to do here
+IF BASS_ANY
     cpx bass_want
     bne fit                     \ not the channel the voice was given to
     jsr bass_claim
+ENDIF
 .fit
     lda snper+1
     cmp #4
@@ -229,9 +269,12 @@ ENV_FULL_PERIOD = 78
     \ at a fifteenth of its frequency, at the claiming channel's own
     \ volume. bass_pick only grants the voice when no drum wants the
     \ channel, so there is nothing to arbitrate here.
+IF BASS_PER
+IF BASS_RT
     lda bass_mode
     cmp #2
     bne drums
+ENDIF
     lda bass_chan
     bmi drums
     lda #&e3                    \ bit 2 CLEAR = periodic; rate 3 = tone 3
@@ -244,6 +287,7 @@ ENV_FULL_PERIOD = 78
     ora #&f0
     jsr sn_vol3
     jmp bass_update
+ENDIF
 .drums
 
     \ ---- noise -----------------------------------------------------
@@ -271,11 +315,19 @@ ENV_FULL_PERIOD = 78
     lda noise_att
     ora #&f0
     jsr sn_vol3
+IF BASS_ANY
     jmp bass_update
+ELSE
+    rts
+ENDIF
 .no_noise
     lda #&ff                    \ channel 3 silent
     jsr sn_vol3
+IF BASS_ANY
     jmp bass_update
+ELSE
+    rts
+ENDIF
 }
 
 \ ******************************************************************
@@ -343,12 +395,15 @@ USR_IER  = &FE6E
 \ * wants it, it keeps it. Only when that channel comes back above the
 \ * floor does the voice move, and then to the lowest-numbered claimant.
 \ ******************************************************************
+IF BASS_ANY
 .bass_pick
 {
     lda #255
     sta bass_want
+IF BASS_RT
     lda bass_mode
     beq out                     \ mode 0: nobody gets it
+ENDIF
 
     \ Which channels are audible and below the chip's floor?
     lda #0
@@ -382,11 +437,15 @@ USR_IER  = &FE6E
     lda bass_mask
     beq out                     \ nobody wants it
 
+IF BASS_PER
+IF BASS_RT
     lda bass_mode               \ the periodic voice IS the noise channel,
     cmp #2                      \ so a drum takes it away - ym2sn's rule,
     bne claimable               \ and measured it costs the median song 10%
+ENDIF
     lda noise_busy              \ of its bass calls (survey_tunes.py). The
     bne out                     \ software voice has no such problem.
+ENDIF
 .claimable
 
     ldx bass_prev               \ does last call's channel still want it?
@@ -406,6 +465,7 @@ USR_IER  = &FE6E
 .out
     rts
 }
+ENDIF
 
 .chan_bit       equb 1, 2, 4
 
@@ -422,13 +482,18 @@ USR_IER  = &FE6E
 \ * bass_claim - X = channel, snper = 2 * the AY period. Called from the
 \ * channel loop when the note is below the chip's floor.
 \ ******************************************************************
+IF BASS_ANY
 .bass_claim
 {
     stx bass_chan
+IF BASS_RT
     lda bass_mode
     cmp #2
     beq periodic
-
+ELIF BASS_PER
+    jmp periodic
+ENDIF
+IF BASS_SOFT
     stx bass_skip               \ the interrupt owns this channel's volume
 
     \ The timer counts microseconds and wants HALF a period. An AY period
@@ -448,7 +513,9 @@ USR_IER  = &FE6E
     lda #1 : sta snper
     lda #0 : sta snper+1
     rts
+ENDIF
 
+IF BASS_PER
 \ ---- the periodic-noise voice ---------------------------------------
 \ The SN's noise generator, with the feedback bit clear, circulates a
 \ single set bit round its 15-bit shift register: a 1/15 duty-cycle pulse
@@ -475,7 +542,9 @@ USR_IER  = &FE6E
     lda sn_slot+2 : sta sn_slot,x
     tya           : sta sn_slot+2
     rts
+ENDIF
 }
+ENDIF
 
 \ ******************************************************************
 \ * div15 - snper = round(snper / 15). Exact, and exactly ym2sn's value.
@@ -496,6 +565,7 @@ USR_IER  = &FE6E
 \ * is 25 cents, and rounding halves the worst error to 11.8 - which is
 \ * the chip's own quantisation and no more.
 \ ******************************************************************
+IF BASS_PER
 .div15
 {
     clc
@@ -544,10 +614,12 @@ USR_IER  = &FE6E
     lda snper+1 : adc #0  : sta snper+1
     rts
 }
+ENDIF
 
 \ ******************************************************************
 \ * bass_update - start, retune or stop the timer. Ends the frame.
 \ ******************************************************************
+IF BASS_ANY
 .bass_update
 {
     lda bass_chan
@@ -556,6 +628,10 @@ USR_IER  = &FE6E
     jmp bass_stop               \ nothing wants it: shut the timer down
 
 .playing
+IF BASS_MODE = 2
+    rts                         \ the periodic voice has no timer to keep
+ENDIF
+IF BASS_RT
     lda bass_mode               \ the periodic voice has no timer at all;
     cmp #2                      \ but if the host has just switched to it
     bne software                \ from the software voice, stop that one
@@ -564,7 +640,9 @@ USR_IER  = &FE6E
     jmp bass_timer_off
 .no_timer
     rts
+ENDIF
 
+IF BASS_SOFT
 .software
     \ Retune ONLY when the note has actually changed. Free-run reloads
     \ from the latches by itself, and writing them every call - even with
@@ -590,7 +668,9 @@ USR_IER  = &FE6E
     lda #&C0 : sta USR_IER          \ bit 7 set = enable T1
 .done
     rts
+ENDIF
 }
+ENDIF
 
 \ ******************************************************************
 \ * bass_stop - silence the bass voice and shut its timer down.
@@ -602,6 +682,7 @@ USR_IER  = &FE6E
 \ * wrong, forcing volume 0, full blast, for one call every time the bass
 \ * stopped. That was an audible click on every bass note ending.
 \ ******************************************************************
+IF BASS_ANY
 .bass_stop
 {
     \ UNCONDITIONAL. An earlier version only touched the hardware when
@@ -609,16 +690,23 @@ USR_IER  = &FE6E
     \ got out of step - mute left the timer running and the interrupt
     \ wrote the channel back up fifty times a second underneath it.
     \ Silencing a timer that is already silent costs 16 cycles.
+IF BASS_SOFT
     lda #&FF : sta bass_last        \ force a retune when it comes back
     sta bass_prev
     \ falls into bass_timer_off
+ELSE
+    lda #&FF : sta bass_prev
+    rts
+ENDIF
 }
+ENDIF
 
 \ ******************************************************************
 \ * bass_timer_off - the hardware half of bass_stop, on its own so that
 \ * a host switching from the software voice to the periodic one has one
 \ * place to turn the timer off rather than a second copy of this.
 \ ******************************************************************
+IF BASS_SOFT
 .bass_timer_off
 {
     lda #0   : sta bass_running
@@ -652,6 +740,7 @@ USR_IER  = &FE6E
     jsr sn_write
     rts
 }
+ENDIF
 
 \ ******************************************************************
 \ * sn_chan - X = channel. Its three SN bytes, but only the ones the
@@ -680,8 +769,10 @@ USR_IER  = &FE6E
     lda sn_t0,x : sta sn_cache_t0,y : jsr sn_write
     lda sn_t1,x : sta sn_cache_t1,y : jsr sn_write
 .tone_same
+IF BASS_ANY
     cpx bass_skip
     beq irq_owns
+ENDIF
     lda sn_v,x
     cmp sn_cache_v,y
     beq out
@@ -808,9 +899,10 @@ INCLUDE "lib/ay2sn_tables.asm"
 {
     lda #255 : sta &fe43
     jsr sn_forget               \ these four writes go round the cache
+IF BASS_ANY
     jsr bass_stop               \ mute has to stop the bass too, or its
-    lda #&9f : jsr sn_write     \ interrupt writes the channel straight
-                                \ back up again fifty times a second
+ENDIF                           \ interrupt writes the channel straight
+    lda #&9f : jsr sn_write     \ back up again fifty times a second
     lda #&bf : jsr sn_write
     lda #&df : jsr sn_write
     lda #&ff : jmp sn_write

@@ -43,7 +43,7 @@ import arkos                                                    # noqa: E402
 import verify                                                   # noqa: E402
 
 
-def build_dd(song, player, env_base):
+def build_dd(song, player, env_base, fixed=-1):
     """verify.build(), but with -dd: the LOCAL labels too.
 
     verify.py only needs the API symbols, so it dumps globals. A profile of
@@ -60,6 +60,7 @@ def build_dd(song, player, env_base):
                     '-D', 'PLAYER_AKY=%d' % (player == 'aky'),
                     '-D', 'PLAYER_AKM=%d' % (player == 'akm'),
                     '-D', 'ENV_BASE=%d' % env_base,
+                    '-D', 'BASS_MODE=%d' % fixed,
                     '-dd', '-labels', labels],
                    cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
     lab = eval(re.sub(r'(\d+)L', r'\1', open(labels).read()))[0]
@@ -184,6 +185,8 @@ def main():
     ap.add_argument('--song', default=verify.DEFAULT_SONG)
     ap.add_argument('--frames', type=int, default=1000)
     ap.add_argument('--bass', type=int, default=2, choices=(0, 1, 2))
+    ap.add_argument('--fixed', type=int, default=-1, choices=(-1, 0, 1, 2),
+                    help='BASS_MODE: assemble one bass voice instead of all three')
     ap.add_argument('--top', type=int, default=25,
                     help='how many routines / instructions to list')
     args = ap.parse_args()
@@ -193,7 +196,8 @@ def main():
 
     env_base = (arkos.envelope_base(args.song)
                 if args.player in ('akl', 'akm') else 8)
-    img, lab, songpath, songsize = build_dd(args.song, args.player, env_base)
+    img, lab, songpath, songsize = build_dd(args.song, args.player, env_base,
+                                            args.fixed)
 
     lo, hi = lab['start'], lab['all_end']
     labels = code_labels(lab, lo, hi)
@@ -218,7 +222,10 @@ def main():
 
     mpu.a, mpu.x, mpu.y = verify.SIM_SONG & 0xFF, verify.SIM_SONG >> 8, 0
     call(lab['%s_init' % args.player])
-    mem[lab['bass_mode']] = args.bass
+    if args.fixed < 0:
+        mem[lab['bass_mode']] = args.bass
+    else:
+        args.bass = args.fixed
 
     # ---- the profiled run -------------------------------------------------
     # Exclusive cycles are the instruction's own. Inclusive needs the call

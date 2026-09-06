@@ -81,9 +81,104 @@ export, add the entry point, and the harness does the rest.
 Note that AKM shares AKL's envelope limitation — only shapes 8 and 0xa — so
 whatever `ENV_BASE` does for AKL, an AKM player will need too.
 
-**AKG would not need it at all.** It carries the true envelope shape, which is
-the one fidelity gap AKL and AKM share — and it is now the only Arkos format
-with no 6502 player anywhere.
+**AKG would not need it at all**: it carries the true envelope shape. See the
+next section.
+
+## To AKG - the one format still without a player
+
+**AKG is now the only Arkos format with no 6502 player anywhere.** Measured
+2026-09-06 against an Arkos Tracker 3.7 install; every figure below says where
+it came from.
+
+### There is a Z80 player, and an annotating exporter
+
+Both, current, and MIT:
+
+| | AKG | AKM, for scale |
+|---|--:|--:|
+| `players/playerAkg/sources/z80/PlayerAkg.asm` | 168,061 bytes | 99,136 |
+| the format spec (vendored as `reference/AKG.md`) | 741 lines | 336 |
+| licence | MIT, Julien Névo | the same |
+
+The Z80 player targets CPC, MSX, Spectrum, Pentagon, PCW and SVI, and has the
+full Player Configuration system - conditional assembly that strips features a
+given song does not use. There is nothing equivalent here and it is worth
+knowing about before deciding how big an AKG player has to be.
+
+**The second oracle is already available.** `tools/SongToAkg.exe` annotates its
+source export the way `SongToAkm.exe` does: 1,750 of the 3,564 lines exported
+for `songs/Acid_demo_07.aks` carry a comment, with Disark region markers.
+`tools/arkos.py` already runs it - `envelope_base()` reads the true envelope
+shapes out of it. So the thing this document says to build FIRST is a matter of
+pointing `akm_source_check.py`'s approach at a different format, not of
+inventing an oracle.
+
+### What it would buy: the measured case
+
+`tools/survey_envelopes.py` reads the shapes each song really uses out of that
+export and sorts the corpus. As of 2026-09-06:
+
+```
+75 songs:  17 no hardware envelope
+           50 fit one AKL/AKM (base, base + 2) pair
+            8 fit NO pair          <- only AKG can carry these
+shapes used, in songs: 8:42  9:1  10:31  12:12  13:1  14:3
+```
+
+The eight are *DemoIzArt - End Part*, *Orion Prime - Fight*, *Star Sabre -
+Boss Theme*, *Hocus Pocus*, *Aganamemnon (soft drums)*, and Totta's *Hardy*,
+*Rezzy* and *Crawlers* - the last two using shapes 13 and 9, the one-shot
+envelopes that have no pair at all. **A further 15 songs need an `ENV_BASE`
+other than 8**, which no export carries and which a host has to be told; AKG
+removes the constant entirely.
+
+Beyond the envelope, AKG has everything `reference/AKM.md`'s own limitations
+list says AKM has not: several PSGs per subsong, events, hard-to-soft sounds,
+unrestricted SoftAndHard, speed changes anywhere rather than only at the start
+of a pattern, full arpeggio and pitch ranges, and the complete effect set.
+
+**It might also be faster.** Targhan's AKM player header says AKM is *"much
+slower than the generic one or the AKY player"*. `performance.md` bounds what
+that is worth here: on *Crtc*, AKM's replay is 1,291 cycles of a 2,981-cycle
+call and `ay2sn` plus the bass is the other 1,690, so even an AKG replay as
+cheap as AKL's 920-963 saves **about 330-370 cycles a call, 12%**. The spine is
+the majority of the frame whatever the format.
+
+**It would cost RAM.** AKG's tune data is 10-36% bigger than AKM's and 2-5%
+bigger than AKL's on the five tunes in `performance.md`, and its player would be
+bigger again - the Z80 source is 1.7x AKM's. AKG is the fidelity and coverage
+choice, not the size choice, and "AKM for a long tune, AKL for a short one"
+does not change.
+
+### The catch, and it is the important part
+
+**`lib/ay2sn.asm` never reads `ay_regs+13`.** The envelope block models exactly
+one shape - `env_shape` in `lib/ay2sn_tables.asm` is a linear 0 to 31 ramp -
+and in the fast case it emits `ENV_MEAN_LEVEL` and does not sample at all,
+which is the E1 decision in `fidelity-plan.md` and was measured to take EDGEA's
+volumes to 97.4% of `ym2sn.py`'s.
+
+So on the BBC, AKG's true shapes buy **nothing** until the spine learns real
+shapes. That is an E2/E3-class change affecting all three existing players and
+it needs its own measurement against `ym2sn.py`; it is not part of writing a
+decoder. The envelope benefit is immediate only for a port to a machine with a
+real AY, where `ay_regs+13` goes to the chip and does the work.
+
+### The route, and what it should cost
+
+The route is the AKM one above, in the same order, and the reason to expect it
+to go the same way is that all three things that made AKM fast are present: a
+Z80 reference to transcribe, an annotating exporter for the cell-by-cell
+oracle, and a harness that already has the shape for another player. AKM went
+from nothing to a proved player and a disc in one day (`history.md`).
+
+Against that, AKG's spec is 2.2x the size and its instrument cells are
+genuinely richer - SoftToHard, HardToSoft and a full SoftAndHard, each with
+optional hardware arpeggio, hardware pitch and forced periods. Call it a few
+days for a verified player.
+
+The open-ended part is not AKG at all. It is whether `ay2sn` should grow real
+envelope shapes, because without that the headline benefit stays on paper.
 
 ## Multiple PSGs
 

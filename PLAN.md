@@ -105,7 +105,14 @@ Not done. There is more to say now than when it was first noted:
 ## Not planned, but the obvious next thing
 
 **AKG has no 6502 player anywhere**, and it is the only Arkos format left
-without one. It carries the true envelope shape, so it needs no `ENV_BASE`
-compensation at all — which would close the one fidelity gap AKL and AKM
-share. [`docs/porting.md`](docs/porting.md) is the route, and it says what to
-do differently: build the annotation oracle first, not last.
+without one. Its Z80 player and its annotating exporter both exist and are
+MIT, and `tools/survey_envelopes.py` measures what a 6502 one would buy:
+**eight of the 75 corpus songs use envelope shapes AKL and AKM cannot encode
+at all**, and fifteen more need an `ENV_BASE` no export carries.
+
+The catch is measured too, and it is why this is not simply queued:
+`lib/ay2sn.asm` never reads `ay_regs+13` and models one envelope shape, so on
+the BBC those true shapes buy nothing until the spine learns them — a separate
+piece of work affecting all three existing players.
+[`docs/porting.md`](docs/porting.md#to-akg---the-one-format-still-without-a-player)
+is the route, the evidence and the estimate.

@@ -137,6 +137,16 @@ ELIF PLAYER_AKM
 ELSE
     lda #LO(SONG) : ldx #HI(SONG) : ldy #0
     jsr akl_init
+IF SONG_TRANSP0 <> 0 OR SONG_TRANSP1 <> 0 OR SONG_TRANSP2 <> 0
+    \ AT2's exporter can leave position 0's transposition out of the
+    \ linker entirely, and this player starts at zero - so set it
+    \ here, after akl_init has cleared the state and before the
+    \ first akl_play reads the linker. build.py takes the true
+    \ values from Arkos's own AKM export. See lib/aklplayer.asm.
+    lda #SONG_TRANSP0 : sta t_transp+0
+    lda #SONG_TRANSP1 : sta t_transp+1
+    lda #SONG_TRANSP2 : sta t_transp+2
+ENDIF
 ENDIF
 
     jsr install_irq

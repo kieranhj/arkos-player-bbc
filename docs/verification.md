@@ -68,6 +68,7 @@ Known-good results, 2026-09-05:
 | AKL | Dead On Time (Ingame), 3,726 frames | AT2 | identical to reference; **NONE** audible |
 | AKL | EDGEA, 17,446 frames | AT2 | identical to reference; `{'ch2 period': 11}` **with `ENV_BASE = 12`**; the default 8 gives `env shape` mismatches, correctly - see `format-akl.md` |
 | AKL | Orion Prime L4 Theme 1 | AT2 | identical to reference; **NONE** audible |
+| AKL | **Tom&Jerry - WON4** (Edge Grinder's win tune), 3,312 frames | AT3 | identical to reference; **NONE** audible - **with `t_transp` set to (0, -3, -7)**, which the AKL export does not carry and a host must supply. Without it, 216 frames in the wrong key. See [`format-akl.md`](format-akl.md) |
 | AKY | Rhino - Acid Demo 21 (six channels), whole tune | AT3 | **NONE** audible |
 | AKY | Rhino - Acid Demo 07 (three channels), whole tune | AT3 | **NONE** audible |
 | AKY | EDGEA, whole tune | AT3 | volumes and periods differ; the periods track the AT2/AT3 replay change below, the volumes are not yet explained |

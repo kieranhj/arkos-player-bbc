@@ -131,7 +131,54 @@ def envelope_base(song, default=8):
     return base
 
 
+
+def initial_transpositions(song, default=(0, 0, 0)):
+    """The per-channel transposition at position 0, from Arkos's own export.
+
+    AKL's linker encodes a transposition only when it CHANGES, and the player
+    starts at zero - so a song whose first position is transposed depends on
+    the exporter writing it there. AT2's SongToLightweight does not always:
+    Edge Grinder's WON4 needs (0, -3, -7) at position 0 and the AKL export
+    carries no transposition at all, which is 216 frames of wrong notes.
+    See docs/format-akl.md, "WON4 plays wrong notes".
+
+    `SongToAkm.exe` without -bin annotates every byte it writes, and its
+    linker names each transposition and the channel it belongs to, so it is
+    the oracle for what position 0 should be. Returns `default` if AKM cannot
+    be run, since no check is better than a wrong one.
+    """
+    exe = find(os.path.join(AT3, 'tools', 'SongToAkm.exe'),
+               os.path.join(AT2, 'tools', 'SongToAkm.exe'))
+    if not exe:
+        return default
+    fd, tmp = tempfile.mkstemp(suffix='.asm')
+    os.close(fd)
+    try:
+        r = subprocess.run([exe, song, tmp], capture_output=True, text=True)
+        if r.returncode != 0:
+            return default
+        text = open(tmp, encoding='utf-8', errors='replace').read()
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    # Just the first position: a later one may transpose without position 0 doing so.
+    start = text.find('; Position 0')
+    if start < 0:
+        return default
+    end = text.find('; Position 1', start)
+    block = text[start:end if end > 0 else len(text)]
+    tr = [0, 0, 0]
+    for val, ch in re.findall(
+            r'db\s+(-?\d+)\s*;\s*New transposition on channel (\d)', block):
+        i = int(ch) - 1
+        if 0 <= i < 3:
+            tr[i] = int(val)
+    return tuple(tr)
+
 if __name__ == '__main__':
     for s in sys.argv[1:]:
-        print('%-46s %d Hz, ENV_BASE %d'
-              % (os.path.basename(s), replay_rate(s), envelope_base(s)))
+        print('%-46s %d Hz, ENV_BASE %d, transpositions %s'
+              % (os.path.basename(s), replay_rate(s), envelope_base(s),
+                 list(initial_transpositions(s))))

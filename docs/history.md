@@ -159,6 +159,32 @@ so disagrees with Arkos's own note table on six notes
 ([`format-akm.md`](format-akm.md)), and **Arkos Tracker 3 ships a V0 player
 with a V1 exporter**.
 
+### 9. WON4, and what asking a plain question turned up
+
+The question was which format Edge Grinder's two tunes want. Answering it found
+a fault nothing had been looking for: the win tune, `WON4.SKS`, was playing 216
+frames in the wrong key under AKL, and had been all along.
+
+It survived every check the project had because none of them was looking at it.
+`--check` said the export was self-consistent; the 6502 was identical to the
+reference on every frame; the tune was never on a disc, so nobody had heard it.
+It took comparing note by note against Arkos's own replay, on a tune nobody had
+compared before, and then asking **how big** the differences were rather than
+how many - `tools/verify/period_diffs.py` exists because the count alone cannot
+tell Arkos's documented ±1 from a semitone.
+
+The cause was AT2's exporter again, in a new way: AKL encodes a transposition
+only when it changes, and the exporter left position 0's out. The fix needed no
+player change - `akl_init` clears `t_transp` and does not read the linker, so
+three stores before the first `akl_play` do it - and it is now detected by the
+exporter, applied by the demo builder, and proved by the harness.
+
+**What this says about the method.** The standing rule that a path nothing has
+called is not a tested path was written about the player's own code. This was
+the same failure one level up: a *tune* nothing had played. The corpus sweep
+that followed says 61 of the 62 songs AT2 can export are fine, so the fault is
+rare - which is exactly why it needed a check rather than a memory.
+
 ---
 
 ## What was believed at the start and turned out wrong
@@ -171,3 +197,7 @@ with a V1 exporter**.
 - *"AKM beats AKL."* Its data does, on every tune. Its player is 549 bytes
   bigger and it costs more per call, so on a short tune AKL still wins. See
   the tables in `performance.md`.
+- *"A self-consistent export is a correct export."* `--check` replayed the data
+  and found nothing wrong with it, because nothing WAS wrong with it: it was
+  complete, playable, and missing a transposition the song had. Self-consistency
+  cannot see an omission. Only Arkos's own rendering can.

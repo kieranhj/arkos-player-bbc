@@ -119,7 +119,7 @@ INCLUDE "lib/aklplayer.asm"
     jmp ay2sn
 ```
 
-Four things a host gets wrong silently:
+Five things a host gets wrong silently:
 
 - **`ENV_BASE` belongs to the song, not the player**, and `lib/aklplayer.asm`
   deliberately does not default it. 8 is right for almost every tune; a tune
@@ -139,6 +139,13 @@ Four things a host gets wrong silently:
   middle, and on a stock machine the MOS's own 100 Hz keyboard scan does. A
   VSync IRQ handler satisfies this for free. Anywhere else, wrap it in
   `sei`/`cli`. It is worth about 60 cycles a call.
+- **AKL only: check the transposition at position 0.** AKL's linker encodes a
+  transposition only when it *changes* and the player starts at zero, so a song
+  whose first position is transposed depends on AT2's exporter writing it there
+  — and for one song in the 62 it can export, it does not. That is notes in the
+  wrong key, in tune with themselves, until the linker next sets one.
+  `export_akl.py --check` refuses such an export and prints the three stores to
+  put after `akl_init`; `example/build.py` applies them for you.
 - **`akl_silence` mutes instead of a frame of music, never as well as.**
   Running the player and silencing the chip afterwards puts a burst of the
   tune's own volumes out fifty times a second, and crackles.

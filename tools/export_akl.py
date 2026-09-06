@@ -67,7 +67,7 @@ def export(song, out, addr, exporter=EXPORTER):
     return os.path.getsize(out)
 
 
-def check(path, base, frames=6000):
+def check(path, base, song=None, frames=6000):
     """Report what the song contains, and whether the export is self-consistent.
 
     The second half matters more than the first. AT2's exporter can emit a
@@ -75,9 +75,14 @@ def check(path, base, frames=6000):
     write - see docs/format-akl.md. Nothing at run time detects that: the
     player reads two bytes of unrelated data as a pointer and walks off into
     the song. This replays the tune in the Python reference and says so.
+
+    It also checks the transpositions at position 0 against Arkos's own AKM
+    export, because the same exporter omits them - see the fault report
+    below, and docs/format-akl.md.
     """
     sys.path.insert(0, os.path.join(HERE, 'verify'))
     import akl_reference                                        # noqa: E402
+    import arkos                                                # noqa: E402
 
     d = open(path, 'rb').read()
 
@@ -114,6 +119,43 @@ def check(path, base, frames=6000):
     print('features:        %s'
           % ', '.join('%s x%d' % kv for kv in sorted(p.stats.items())))
 
+    # What the linker sets before the first note is played, against what the
+    # song actually says. AKL encodes a transposition only when it CHANGES,
+    # and the player starts at zero, so an unencoded position 0 is silent
+    # wrong notes for as long as the first pattern lasts.
+    wrong_transp = None
+    if song:
+        want = arkos.initial_transpositions(song)
+        first = akl_reference.Player(d, base)
+        first.read_linker()
+        got = tuple(t.transp - 256 if t.transp > 127 else t.transp
+                    for t in first.tr)
+        print('transpositions:  position 0 is %s, the song says %s'
+              % (list(got), list(want)))
+        if got != want:
+            wrong_transp = (got, want)
+
+    if wrong_transp:
+        got, want = wrong_transp
+        print()
+        print('*** THIS EXPORT PLAYS THE WRONG NOTES ***')
+        print('    position 0 transposes %s where the song says %s.' % (list(got), list(want)))
+        print('    AKL encodes a transposition only when it CHANGES and the player')
+        print('    starts at zero, so this is wrong until the linker next sets one -')
+        print('    silently, and in tune with itself. It is an ARKOS TRACKER 2')
+        print("    EXPORTER fault: Arkos's own replay and its AKM export both")
+        print('    carry the transposition.')
+        print()
+        print('    THE FIX, and it is proved: akl_init clears t_transp and does')
+        print('    not read the linker, so set it between akl_init and the first')
+        print('    akl_play and a position 0 that sets no transposition leaves it')
+        print('    alone:')
+        print()
+        for i, v in enumerate(want):
+            print('        lda #%-3d : sta t_transp+%d' % (v, i))
+        print()
+        print('    example/build.py does this for you. See docs/format-akl.md.')
+
     bad = []
     if used['arp'] >= n_arp:
         bad.append('arpeggio %d, but only %d were exported' % (used['arp'], n_arp))
@@ -129,6 +171,8 @@ def check(path, base, frames=6000):
         print('    This is an ARKOS TRACKER 2 EXPORTER fault, not a player one:')
         print("    Arkos's own Z80 player reads the same out-of-range entry.")
         print('    Use a different format (AKY, via Arkos Tracker 3) for this song.')
+        return 1
+    if wrong_transp:
         return 1
     print()
     print('the export is self-consistent over %d frames' % frames)
@@ -162,7 +206,7 @@ def main():
         print('room left below &%04X: %d bytes' % (args.limit, args.limit - addr - n))
 
     if args.check:
-        return check(out, addr)
+        return check(out, addr, args.song)
 
 
 if __name__ == '__main__':

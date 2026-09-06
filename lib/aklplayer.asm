@@ -45,6 +45,31 @@
 
 
 \ ******************************************************************
+\ * t_transp AFTER akl_init, IF THE EXPORT LOST POSITION 0's.
+\ *
+\ * AKL's linker encodes a transposition only when it CHANGES, and this
+\ * player starts at zero - so a song whose FIRST position is transposed
+\ * depends on AT2's exporter writing it there, and it does not always.
+\ * Edge Grinder's WON4 needs (0, -3, -7) and the export carries nothing:
+\ * 216 frames of notes in the wrong key, in tune with themselves, with
+\ * nothing in the register stream to say so.
+\ *
+\ * akl_init clears t_transp and does NOT read the linker, and a first
+\ * linker entry that sets no transposition leaves it alone - so the fix
+\ * is three stores between akl_init and the first akl_play:
+\ *
+\ *     jsr akl_init
+\ *     lda #0 : sta t_transp+0         \ what export_akl.py --check
+\ *     lda #-3 : sta t_transp+1        \ prints for this song
+\ *     lda #-7 : sta t_transp+2
+\ *
+\ * Proved on WON4: every audible period difference against Arkos's own
+\ * replay goes, over all 3,312 frames. `python tools/export_akl.py
+\ * <song> --check` reports the triple and refuses the export without it;
+\ * example/build.py passes it through. See docs/format-akl.md.
+\ ******************************************************************
+
+\ ******************************************************************
 \ * akl_init - A/X = LO/HI of the song, Y = subsong index
 \ ******************************************************************
 .akl_init

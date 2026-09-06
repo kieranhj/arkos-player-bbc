@@ -118,65 +118,90 @@ mismatches. Targhan's Orion Prime uses 8 and 10 and produced 362 of them
 while the constant was 12; EDGEA produces 209 while it is 8. With
 `envelope_base()` choosing, both are clean.
 
-## WON4 plays wrong notes, and it is ours
+## The exporter can lose position 0's transposition — FIXED
 
-Measured 2026-09-06. **Edge Grinder's end-game tune, `WON4.SKS`, disagrees with
-Arkos's own player on 216 audible channel-frames, and they are not the
-documented plus-or-minus one.**
+Found and fixed 2026-09-06. **Edge Grinder's end-game tune, `WON4.SKS`, played
+216 channel-frames in the wrong key**, and the cause is a second fault in the
+same exporter as the one above.
 
 ```
-python tools/verify/verify.py --player akl --song .../WON4.SKS --bass 2
-   the 6502 player against akl_reference.py: IDENTICAL on every frame
-   akl_reference.py: audible mismatches: {'ch1 period': 108, 'ch2 period': 108}
-
 python tools/verify/period_diffs.py .../WON4.SKS
    |diff| = 180      108 frames
    |diff| = 476      108 frames
 ```
 
-Two things make this different from every other AKL result here.
+Not the documented ±1 — 180 and 476 period units are semitones. And unlike
+EDGEA, where AT2's oracle and AT3's disagree with *each other*, both Arkos
+versions produced the identical histogram here: they agree, and we differed.
 
-**It is a wrong note, not a rounding difference.** Arkos documents a ±1
-disagreement between its PC side and its Z80 player in the volume and pitch
-effects; that is what EDGEA's eleven channel-2 frames are, and they are
-correct. 180 and 476 period units are semitones, on about 3.3% of the tune's
-frames on each of two channels.
+### What it was
 
-**Both Arkos versions agree with each other and disagree with us.** AT2's
-`SongToYm.exe` and AT3's produce the *identical* histogram - 108 at 180 and
-108 at 476:
+AKL's linker encodes a transposition **only when it changes**, and the player
+starts at zero. So a song whose *first* position is transposed depends
+entirely on the exporter writing it into position 0 — and AT2's
+`SongToLightweight.exe` did not. Arkos's own AKM export of the same song says
+what it should be:
 
 ```
-ARKOS3_HOME=/nonexistent python tools/verify/period_diffs.py .../WON4.SKS
-   (AT2's oracle) |diff| = 180  108 frames    |diff| = 476  108 frames
+; Position 0
+    db 250    ; State byte.
+    db 39    ; New height.
+    db 131    ; New track (0) for channel 1, as a reference (index 3).
+    db -3    ; New transposition on channel 2.
+    db 131    ; New track (0) for channel 2, as a reference (index 3).
+    db -7    ; New transposition on channel 3.
+    db 131    ; New track (0) for channel 3, as a reference (index 3).
 ```
 
-That is the opposite of EDGEA, where the two Arkos versions disagree with each
-other (11 mismatches against AT2, 431 against AT3) and the argument is about
-which oracle to believe. Here there is no such argument. The 6502 is identical
-to `akl_reference.py` on every frame, so the fault is in the reference's
-understanding of the format, or in the exporter - it is on our side of the
-line either way.
+All three channels share one track and are pulled apart by transposition:
+(0, −3, −7). The AKL export's first linker entry is `05 27 7B 42 7B 42 7B 42`
+— flag bit 3 clear, so no transposition at all, and the same track pointer
+three times. Three channels playing one track in unison, where the song says a
+chord. AKM's own replay of the tune is right to ±1 on every frame, which is
+what said the fault was in the AKL data rather than in a player.
 
-**The lead is the instrument pitch table.** `export_akl.py --check` reports
-what a song uses, and the two Edge Grinder tunes differ in exactly one place:
+The spec even warns about this class, for the loop point rather than the start:
+*"Warning when encoding! If the transpositions at the end of the song are not
+the same as at the beginning of the loop, the latter must be encoded."*
 
-| feature | EDGEA | WON4 |
-|---|--:|--:|
-| `inst:pitch` | **none** | **1,275** |
-| `frame:pitch-up-down` | 117 | **108** |
-| `linker:speed` | 2 | none |
+### The fix, and it needs no player change
 
-WON4 is the first tune measured here that uses the instrument pitch table at
-all - one of the paths the Traps section below says has never been exercised -
-and its 108 `frame:pitch-up-down` frames are exactly the mismatch count on each
-channel. EDGEA has 117 of those frames and eleven mismatches, so the effect on
-its own is not the fault; something about its interaction with the pitch table
-is the place to start.
+`akl_init` clears `t_transp` and does **not** read the linker, and a first
+position that sets no transposition leaves it alone. So three stores between
+`akl_init` and the first `akl_play` are the whole repair:
 
-Until it is explained, **AKL plays WON4 with an audible wrong pitch twice a
-second for 3% of its length**. It is 66 seconds that plays once at the end of
-the game, which is why nobody has heard it.
+```
+    jsr akl_init
+    lda #0  : sta t_transp+0
+    lda #-3 : sta t_transp+1
+    lda #-7 : sta t_transp+2
+```
+
+`tools/arkos.py`'s `initial_transpositions()` reads the true triple out of
+`SongToAkm.exe`'s annotated source export, and three things now use it:
+
+- **`export_akl.py --check` refuses the export** and prints the three
+  instructions to paste;
+- **`example/build.py` emits them** as `SONG_TRANSP0..2`, and `example/demo.asm`
+  applies them, so any disc built from such a song is right;
+- **`verify.py` sets them too**, in both the 6502 and the reference, because
+  this is the host's job rather than the format's — and says on stdout when it
+  has.
+
+Measured after: `verify.py --player akl --song WON4.SKS` reports the 6502
+**identical to the reference on every one of 3,312 frames** and the reference
+**audible mismatches: NONE** against Arkos. It was 216.
+
+### How common is it
+
+Rare, and worth checking anyway. Over the corpus AT2 can still load — 62 songs
+of the 75, the other 13 being AT3-format files its exporter refuses — the
+export's position-0 transposition agrees with the song's on **61**. WON4 is the
+only one that does not.
+
+That is the argument for the check rather than a special case: one song in 62,
+silent, in tune with itself, and it took a note-by-note comparison against
+Arkos's own replay to see it at all.
 
 ## Traps
 
@@ -186,8 +211,9 @@ the game, which is why nobody has heard it.
   it was given.
 - **Paths nothing has ever called are not tested paths.** Pitch tables,
   soft-and-hard instruments and effects 1, 2, 5 and 6 have still not been
-  exercised by any verified tune - and the first tune to reach the pitch table,
-  WON4 above, plays wrong notes. They are written and they look right; that
+  exercised by any verified tune. WON4 is the first tune here to reach the
+  instrument pitch table, and it took a note-by-note comparison against Arkos
+  to notice that something else about it was wrong - see above. They are written and they look right; that
   is not the same thing. `--check` reports what a song uses.
 - One real bug was found in this class during the extraction, in the Python
   reference: the arpeggio loop offset is sign-extended by the Z80's `sra` and

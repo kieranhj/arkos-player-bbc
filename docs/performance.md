@@ -184,7 +184,7 @@ and `bass_stop` still run to the end of every frame, `sn_chan` still asks
 `cpx bass_skip` per channel, and the channel loop still tests `cpx bass_want`
 on every below-floor note.
 
-It is `PLAN.md` item 6, with the acceptance test. It needs a `docs/decisions.md`
+It is `PLAN.md` item 5, with the acceptance test. It needs a `docs/decisions.md`
 row first, because it adds a second host-facing constant beside `ENV_BASE` -
 and because `example/demo.asm`'s B key cannot work in a fixed build.
 
@@ -435,7 +435,7 @@ size here:
 
 | audible mismatches vs Arkos | EDGEA | WON4 |
 |---|--:|--:|
-| **AKL** | **11** (the documented ±1) | 216 |
+| **AKL** | **11** (the documented ±1) | 216, now **0** (see below) |
 | AKM | **6,715** | 1,104 |
 
 EDGEA is on the *not clean* list in `tools/verify/akm_known_good.txt` - one of
@@ -453,9 +453,10 @@ shape 12 throughout, so a single build plays both - had WON4 been shape 8 or
 exporter**: `export_akl.py --check` replays each over 6,000 frames and finds
 neither has the arpeggio fault.
 
-So **AKL for both**, which is what edge-beeb's `MUSIC_AKL` build already uses -
-but WON4's 216 are a real defect rather than the documented ±1, and
-`format-akl.md` has it. `PLAN.md` item 6 would also hand a byte-starved build
+So **AKL for both**, which is what edge-beeb's `MUSIC_AKL` build already uses.
+WON4's 216 were a real defect rather than the documented ±1 - AT2's exporter
+dropping position 0's transposition - and they are **fixed**: it now verifies
+with no audible mismatch at all. See `format-akl.md`. `PLAN.md` item 5 would also hand a byte-starved build
 606 bytes back, a third of AKM's whole size advantage.
 
 ### What the tables say

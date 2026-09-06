@@ -250,6 +250,24 @@ def main():
     mpu.a, mpu.x, mpu.y = SIM_SONG & 0xFF, SIM_SONG >> 8, 0
     call(init)
 
+    # AKL's linker encodes a transposition only when it CHANGES and the
+    # player starts at zero, so a song whose FIRST position is transposed
+    # depends on AT2's exporter writing it there - and WON4 shows it does
+    # not always. akl_init clears t_transp and does not read the linker, so
+    # a host sets it here; example/demo.asm does exactly this, and
+    # export_akl.py --check refuses an export that needs it. The reference
+    # gets the same treatment, because both are the HOST's job, not the
+    # format's. See docs/format-akl.md.
+    transp = (0, 0, 0)
+    if args.player == 'akl':
+        transp = arkos.initial_transpositions(args.song)
+        if transp != (0, 0, 0):
+            for i, v in enumerate(transp):
+                mem[lab['t_transp'] + i] = v & 0xFF
+            print('transp:  position 0 is %s, which the AKL export does not'
+                  % list(transp))
+            print('         carry - set into t_transp, as a host must')
+
     # The bass voice. Mode 1 is interrupt-driven and py65 has no VIA, so it
     # cannot be exercised here at all - only jsbeeb sees it. Mode 2, the
     # periodic-noise voice, is pure ay2sn and runs here exactly as it runs
@@ -285,6 +303,8 @@ def main():
     ref = None
     if args.player == 'akl':
         ref = akl_reference.Player(open(songpath, 'rb').read(), SIM_SONG)
+        for t, v in zip(ref.tr, transp):
+            t.transp = v & 0xFF
     elif args.player == 'akm':
         ref = akm_reference.Player(open(songpath, 'rb').read(), SIM_SONG)
 

@@ -74,7 +74,7 @@ what machine it is on, so a replay alone travels to an Oric or an Apple II.
 
 Measured in py65 at 2 MHz over five tunes, including the whole AY→SN
 conversion and the bass voice. Full per-tune tables, and the same comparison
-against VGC, VGI, AKG and raw VGM, are in
+against VGC, VGI, VGI3, AKG and raw VGM, are in
 [`docs/performance.md`](docs/performance.md#7-choosing-a-format-the-full-tables).
 
 The short version:
@@ -190,6 +190,7 @@ python tools/verify/akm_verify_corpus.py      # prove AKM on all 39 of its songs
 python tools/make_tables.py --check           # prove the tables still match
 python tools/compare_formats.py               # regenerate the format tables
 python tools/survey_tunes.py                  # what each song in a corpus stresses
+python tools/stream_cost.py a.ym a.vgm        # what the AY->SN conversion costs a packer
 ```
 
 Five discs. **EDGEA** is the tune the library was built for and the only one
@@ -230,9 +231,11 @@ bass and the priority-channel idea all come from, expertly tuned over a long
 time and against real ears. The software bass voice is his too, from
 `vgcplayer_bass.asm`, and `sn_write` comes from
 [vgm-player-bbc](https://github.com/simondotm/vgm-player-bbc) — as does the
-**VGC** format the comparison tables measure against. **VGI**, the interleaved
-variant in those tables, is so far only a branch of
-[kieranhj's fork](https://github.com/kieranhj/vgm-player-bbc) of that project.
+**VGC** format the comparison tables measure against. **VGI** and **VGI3**, the
+incremental-decode variants in those tables, are so far only a branch of
+[kieranhj's fork](https://github.com/kieranhj/vgm-player-bbc) of that project;
+v3 came out of a measurement made here and is written up in
+[`docs/porting.md`](docs/porting.md).
 
 What is new here is the AKL replay, the AKM replay, the BBC port of the AKY
 replay, and putting that conversion in the 6502 rather than in a build step.

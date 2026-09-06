@@ -215,6 +215,34 @@ and edge-beeb's worst frame was already at 108%. `BASS_MODE = 0` is one constant
 away at 1,851 if it ever matters more than the bass does - which is the whole
 argument for the constant existing.
 
+### 2026-09-06: a look at FAP, and a format change it caused somewhere else
+
+Arkos's fourth player, FAP (Hicks & Gozeur, MIT, CPC only), turned out to be a
+compressed register log rather than a tracker replay - eleven per-register LZSS
+streams over a 256-byte ring, decoded a fixed budget a frame. That is `.vgi`'s
+architecture, arrived at independently, and it made the two formats a
+controlled experiment: same coder class, different chip.
+
+FAP's files were 1.48-1.99x smaller than `.vgi`'s of the same tunes, and
+`tools/stream_cost.py` (written for this) found why. Under one common coder an
+**SN76489 register log costs 1.76-2.06x the AY log of the same tune**. Not more
+bytes - eleven a frame either side. Not more changes - 2.53 a frame on the AY
+side against 2.40 on the SN. The AY's 12-bit period splits 8+4 and leaves the
+coarse nibble nearly static at 3.3% of frames; the SN's 10 bits split 4+6 and
+both halves are busy, 40.1% and 43.8%. Two busy columns cost a per-column LZ far
+more than one busy and one quiet.
+
+That went upstream and became **`.vgi` v3**: index each channel's period into a
+table and a tone channel is one stream instead of two. 21-29% off the file, a
+2 KB ring instead of 2.75 KB, and three fewer per-stream state machines a frame.
+The player in `vgm-player-bbc` now measures 1,236-1,331 cycles mean here where
+v2 measured 1,512-1,581, with the narrowest worst frame in `performance.md`.
+
+**No 6502 FAP player was written, and the write-up in `porting.md` says why.**
+Its replay would cost about AKM's and still owe `ay2sn` the spine; its one
+advantage over VGI was total RAM, and v3 took three of those five tunes back.
+The value in the exercise was the measurement, not the port.
+
 ---
 
 ## What was believed at the start and turned out wrong

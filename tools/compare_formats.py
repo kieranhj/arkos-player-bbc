@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """What each music format costs on a BBC, over the demo discs' four tunes.
 
-Six ways to play the same song on an SN76489, measured the same way:
+Seven ways to play the same song on an SN76489, measured the same way:
 
   AKL, AKY, AKM   this library - a tracker replay plus lib/ay2sn.asm
-  VGC, VGI   simondotm's register-log formats and players, from
-             BEEB/Repos/vgm-player-bbc, fed by ym2sn.py
+  VGC, VGI, VGI3
+             simondotm's register-log formats and players, from
+             BEEB/Repos/vgm-player-bbc, fed by ym2sn.py. VGI3 is .vgi v3,
+             which indexes each channel's tone period into a table: 8 streams
+             instead of 11, a 2Kb workspace instead of 2.75Kb, and smaller
+             data - see that repo's docs/vgi-format.md
   AKG        Arkos's other tracker format, DATA SIZE ONLY - there is no
              6502 player for it anywhere
 
@@ -48,7 +52,7 @@ YM2SN = os.path.join(BEEB, 'Repos', 'nova-invite', 'bin', 'ym2sn.py')
 LOAD = 0x1100
 RET = 0x9000
 
-FORMATS = ('akl', 'aky', 'akm', 'akg', 'vgc', 'vgi', 'vgm')
+FORMATS = ('akl', 'aky', 'akm', 'akg', 'vgc', 'vgi', 'vgi3', 'vgm')
 
 # The four discs example/build.py makes, in the order the README lists them.
 TUNES = [
@@ -98,25 +102,29 @@ def export_vgm(song, stem):
     """SongToYm -> ym2sn.py -> .vgm, then the two packers."""
     exe = arkos.song_to_ym_exe()
     if not exe or not os.path.exists(YM2SN):
-        return None, None, None
+        return None, None, None, None
     ym = os.path.join(BUILD, stem + '.ym')
     if not os.path.exists(ym):
         r = subprocess.run([exe, '-p', '1', song, ym], capture_output=True, text=True)
         if r.returncode != 0:
-            return None, None, None
+            return None, None, None, None
     vgm = os.path.join(BUILD, stem + '.vgm')
     r = subprocess.run([sys.executable, YM2SN, ym, '-o', vgm],
                        capture_output=True, text=True)
     if r.returncode != 0 or not os.path.exists(vgm):
-        return None, None, None
+        return None, None, None, None
     vgc = os.path.join(BUILD, stem + '.vgc')
     vgi = os.path.join(BUILD, stem + '.vgi')
+    vgi3 = os.path.join(BUILD, stem + '.v3.vgi')
     subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgmpacker.py'),
                     vgm, '-o', vgc], capture_output=True, text=True)
     subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgipacker.py'),
                     vgm, '-o', vgi], capture_output=True, text=True)
+    subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgipacker.py'),
+                    vgm, '-o', vgi3, '--v3'], capture_output=True, text=True)
     return vgm, (vgc if os.path.exists(vgc) else None), \
-        (vgi if os.path.exists(vgi) else None)
+        (vgi if os.path.exists(vgi) else None), \
+        (vgi3 if os.path.exists(vgi3) else None)
 
 
 # -------------------------------------------------------- the measurements ---
@@ -198,10 +206,10 @@ def vgm_cost(data, kind):
     AKL and AKY, so the two halves of the table are comparable.
     """
     lib = os.path.join(VGM_PLAYER, 'lib').replace('\\', '/')
-    if kind == 'vgi':
+    if kind.startswith('vgi'):
         zp = 'INCLUDE "%s/vgiplayer.h.asm"' % lib
         code = 'INCLUDE "%s/vgiplayer.asm"' % lib
-        buf = 11 * 256                          # 11 ring windows
+        buf = (8 if kind == 'vgi3' else 11) * 256   # one ring window per column
     else:
         zp = ('INCLUDE "%s/vgcplayer_config.h.asm"\nINCLUDE "%s/vgcplayer.h.asm"'
               % (lib, lib))
@@ -215,8 +223,11 @@ def vgm_cost(data, kind):
                            data=data.replace('\\', '/'),
                            out=out.replace('\\', '/')))
     cmd = [beebasm(), '-i', src]
-    if kind == 'vgi':
-        cmd += ['-D', 'VGI_UNROLL=0']
+    if kind.startswith('vgi'):
+        # Both flags are required on every build of that player, and VGI_V3
+        # decides which FILE it can read - a mismatch is refused at mount.
+        cmd += ['-D', 'VGI_UNROLL=0',
+                '-D', 'VGI_V3=%d' % (1 if kind == 'vgi3' else 0)]
     cmd += ['-d', '-labels', lbl]
     r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0 or not os.path.exists(out):
@@ -286,10 +297,11 @@ def main():
         for fmt in ('akl', 'aky', 'akm', 'akg'):
             sizes[fmt] = size_or_none(
                 export_arkos(song, fmt, os.path.join(BUILD, '%s.%s' % (stem, fmt))))
-        vgm, vgc, vgi = export_vgm(song, stem)
+        vgm, vgc, vgi, vgi3 = export_vgm(song, stem)
         sizes['vgm'] = size_or_none(vgm)
         sizes['vgc'] = size_or_none(vgc)
         sizes['vgi'] = size_or_none(vgi)
+        sizes['vgi3'] = size_or_none(vgi3)
 
         akl_ok = bool(sizes['akl']) and akl_plays(
             os.path.join(BUILD, '%s.akl' % stem))
@@ -311,6 +323,8 @@ def main():
                 cost['vgc'] = vgm_cost(vgc, 'vgc')
             if vgi:
                 cost['vgi'] = vgm_cost(vgi, 'vgi')
+            if vgi3:
+                cost['vgi3'] = vgm_cost(vgi3, 'vgi3')
 
         frames = next((c['frames'] for c in cost.values()
                        if c and c.get('frames')), None)

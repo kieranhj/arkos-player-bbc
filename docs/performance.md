@@ -318,7 +318,7 @@ but the chip's registers may not — lives in `tools/verify/chip_state.py`.
 
 ## 7. Choosing a format: the full tables
 
-Six ways to get a song out of an SN76489, over the five tunes on the demo
+Seven ways to get a song out of an SN76489, over the five tunes on the demo
 discs. Every figure is measured, none is quoted from anywhere else, and
 `python tools/compare_formats.py` regenerates the lot into `build/formats.md`.
 
@@ -330,12 +330,23 @@ having the music in the machine. In each table three cells are bold: the
 **lowest RAM**, the **lowest mean** and the **highest max** — the last because
 on a raster-timed host the worst frame is the one that decides.
 
-Two of the six are not ours. **VGC** is Simon Morris's compressed VGM format
-from [vgm-player-bbc](https://github.com/simondotm/vgm-player-bbc); **VGI** is
-an interleaved variant of it that so far exists only as a branch of
-[kieranhj's fork](https://github.com/kieranhj/vgm-player-bbc) of that project.
-Both are register logs, and both get the whole AY→SN conversion for free
-because `ym2sn.py` did it offline. AKG has no 6502 player anywhere.
+Three of the seven are not ours. **VGC** is Simon Morris's compressed VGM
+format from [vgm-player-bbc](https://github.com/simondotm/vgm-player-bbc);
+**VGI** is an interleaved variant of it that so far exists only as a branch of
+[kieranhj's fork](https://github.com/kieranhj/vgm-player-bbc) of that project;
+**VGI3** is `.vgi` version 3, added there on 2026-09-06, which stops splitting
+each tone period 4+6 across two streams and instead indexes it into a table the
+packer builds — 8 streams where v2 has 11, a 2 KB ring where v2 needs 2.75 KB,
+and 21-29% less data. (The measurement that prompted it is in
+[`porting.md`](porting.md): an SN register log costs 1.76-2.06x the AY log of
+the same tune, and the period split is most of why.) All three are register
+logs, and all three get the whole AY→SN conversion for free because `ym2sn.py`
+did it offline. AKG has no 6502 player anywhere.
+
+The VGI and VGI3 rows were measured on 2026-09-06 against the current player;
+VGI's own figures moved by 3 cycles from the previous run because the player
+grew a version check at mount and shifted a few indexed accesses across a page
+boundary.
 
 ### Rhino, Acid Demo 21 — 192 s, 50 Hz, 9,600 calls
 
@@ -346,7 +357,8 @@ because `ym2sn.py` did it offline. AKG has no 6502 player anywhere.
 | AKM | 7,092 | 4,234 | 11,326 | 2,482 | 4,732 |
 | AKG | 8,674 | no player | — | — | — |
 | VGC | 7,460 | 2,816 | **10,276** | 1,711 | **5,321** |
-| VGI | 10,069 | 3,584 | 13,653 | **1,551** | 2,652 |
+| VGI | 10,069 | 3,584 | 13,653 | 1,554 | 2,655 |
+| VGI3 | 7,718 | 2,816 | 10,534 | **1,265** | 2,020 |
 | VGM (unpacked) | 84,249 | no player | — | — | — |
 
 AT2 exports an AKL for this tune and it **will not play** — the arpeggio fault in [`format-akl.md`](format-akl.md).
@@ -361,7 +373,8 @@ This is the tune the AKY disc uses, and why.
 | AKM | 1,741 | 4,234 | 5,975 | 2,634 | 4,229 |
 | AKG | 2,074 | no player | — | — | — |
 | VGC | 5,950 | 2,816 | 8,766 | 2,034 | **5,430** |
-| VGI | 6,460 | 3,584 | 10,044 | **1,578** | 2,726 |
+| VGI | 6,460 | 3,584 | 10,044 | 1,581 | 2,729 |
+| VGI3 | 4,610 | 2,816 | 7,426 | **1,276** | 2,110 |
 | VGM (unpacked) | 39,493 | no player | — | — | — |
 
 The short tune is where AKL's smaller player wins outright — 302 bytes ahead of AKM, despite AKM's data being 247 bytes smaller.
@@ -374,8 +387,9 @@ The short tune is where AKL's smaller player wins outright — 302 bytes ahead o
 | AKY | 13,932 | 2,750 | 16,682 | 2,065 | 2,877 |
 | AKM | 3,654 | 4,234 | **7,888** | 2,546 | 4,489 |
 | AKG | 4,956 | no player | — | — | — |
-| VGC | 14,702 | 2,816 | 17,518 | **1,485** | **5,546** |
-| VGI | 22,292 | 3,584 | 25,876 | 1,566 | 3,004 |
+| VGC | 14,702 | 2,816 | 17,518 | 1,485 | **5,546** |
+| VGI | 22,292 | 3,584 | 25,876 | 1,569 | 3,007 |
+| VGI3 | 16,079 | 2,816 | 18,895 | **1,275** | 2,314 |
 | VGM (unpacked) | 128,027 | no player | — | — | — |
 
 ### Targhan, Orion Prime L4 — 484 s, 50 Hz, 24,192 calls
@@ -387,7 +401,8 @@ The short tune is where AKL's smaller player wins outright — 302 bytes ahead o
 | AKM | 1,755 | 4,234 | **5,989** | 2,493 | 4,546 |
 | AKG | 2,368 | no player | — | — | — |
 | VGC | 5,841 | 2,816 | 8,657 | **1,002** | **5,601** |
-| VGI | 10,530 | 3,584 | 14,114 | 1,509 | 2,863 |
+| VGI | 10,530 | 3,584 | 14,114 | 1,512 | 2,866 |
+| VGI3 | 8,126 | 2,816 | 10,942 | 1,236 | 2,201 |
 | VGM (unpacked) | 100,445 | no player | — | — | — |
 
 **1,002 cycles is the lowest mean measured
@@ -406,13 +421,15 @@ The AKM demo disc's tune, and the one where the choice is least close.
 | AKM | 6,159 | 4,234 | **10,393** | 2,805 | 5,032 |
 | AKY | 17,974 | 2,750 | 20,724 | 2,223 | 2,983 |
 | AKG | 6,798 | no player | — | — | — |
-| VGC | 21,037 | 2,816 | 23,853 | **2,155** | **5,125** |
+| VGC | 21,037 | 2,816 | 23,853 | 2,155 | **5,125** |
 | VGI | 28,043 | 3,584 | 31,627 | — | — |
+| VGI3 | 21,438 | 2,816 | 24,254 | **1,331** | 2,177 |
 | VGM (unpacked) | 130,088 | no player | — | — | — |
 
 VGI has no cost figure because at 28,043 bytes the
 tune does not fit the harness's simulated memory; its RAM figure is arithmetic
-rather than a measurement.
+rather than a measurement. **VGI3 does fit**, at 6,605 bytes less data, and it
+is measured like the rest.
 
 **AKL cannot play this tune at all** — AT2's exporter writes 6,448 bytes whose
 tracks reference arpeggio table 29 when it wrote ten, the same fault it has on
@@ -420,7 +437,7 @@ Rhino's tune and with the same arpeggio number. `export_akl.py --check`
 refuses it.
 
 **AKM is half the RAM of anything else that can play it** — 10,393 bytes
-against AKY's 20,724, and a third of VGI's. This is the shape the format was
+against AKY's 20,724, a third of VGI's and 43% of VGI3's. This is the shape the format was
 designed for: a long tune with a lot of pattern reuse, where a register log
 has to store every frame of output and a tracker replay does not.
 
@@ -437,6 +454,7 @@ carry both.
 | AKM | 3,654 | 598 | 4,252 | 4,234 | **8,486** |
 | AKY | 13,932 | - | - | 2,750 | out on EDGEA alone |
 | VGI (what edge-beeb ships) | 22,292 | 2,889 | - | 3,584 | 25,876, and WON4 does not fit |
+| VGI3 (the same format, v3) | 16,079 | - | - | 2,816 | 18,895 for EDGEA alone |
 
 **AKM is 635 bytes smaller and loses anyway**, on the only thing that outranks
 size here:
@@ -476,13 +494,21 @@ for Edge Grinder's 349 seconds. A tracker replay stores the *song*; a register
 log stores the *output*, and output grows with length while a song mostly does
 not. Orion Prime is 484 seconds in 2,320 bytes.
 
-**VGI is the cheapest and by far the steadiest**, 1,509–1,578 cycles mean on
-every tune and never past 3,004. **VGC has the lowest mean of anything here**
-— 1,002 on Orion — and spikes to 5,321–5,601 on all four, which is the number
-that matters on a raster-timed host: it is the frame that tears. Our two are
-in between and flat, AKY's worst frame (2,714–2,914) beating AKL's
+**VGI3 is the cheapest and by far the steadiest**, 1,236–1,331 cycles mean on
+every tune and never past 2,314 — the best worst-frame in the whole comparison,
+including AKY's 2,714–2,983. It took that title from VGI v2 (1,512–1,581 mean,
+up to 3,007) on 2026-09-06 by decoding three fewer streams. **VGC still has the
+lowest single mean here** — 1,002 on Orion, where its compressed log has long
+runs of nothing changing — but it spikes to 5,125–5,601 on all five, which is
+the number that matters on a raster-timed host: it is the frame that tears.
+Ours are in between and flat, AKY's worst frame (2,714–2,983) beating AKL's
 (3,594–3,900) because AKY does almost nothing per frame and `ay2sn` becomes
 the whole cost.
+
+**None of that changes what wins RAM**, which is what this library is for. On
+Edge Grinder VGI3 is 18,895 bytes against AKM's 7,888; on Orion 10,942 against
+5,989. The one place it is close is *Acid Demo 21*, where AKL's export does not
+play at all and VGI3's 10,534 sits between VGC's 10,276 and AKM's 11,326.
 
 **AKM is the smallest data of all, and now it has a player** —
 `lib/akmplayer.asm`, the only 6502 AKM replay in existence. Its tune data
@@ -511,6 +537,6 @@ Two things the numbers do not say on their own. Our cycle figures **include
 the whole AY→SN conversion and the bass voice**, computed every call; VGC and
 VGI get all of that for free because `ym2sn.py` did it offline, hours before,
 with whole-song analysis — the trade this library exists to make, and
-[`ay-to-sn.md`](ay-to-sn.md) says how close it now gets. And VGI's 3,584 bytes
-of workspace are eleven 256-byte ring windows that must be page aligned, where
-AKL and AKY want 22 bytes of zero page and nothing else.
+[`ay-to-sn.md`](ay-to-sn.md) says how close it now gets. And their workspace is
+page-aligned ring windows — eleven of them in VGI, eight in VGI3, 2.75 KB and
+2 KB — where AKL and AKY want 22 bytes of zero page and nothing else.

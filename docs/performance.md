@@ -453,7 +453,7 @@ carry both.
 | **AKL** | 4,741 | 695 | 5,436 | 3,685 | **9,121** |
 | AKM | 3,654 | 598 | 4,252 | 4,234 | **8,486** |
 | AKY | 13,932 | - | - | 2,750 | out on EDGEA alone |
-| VGI (what edge-beeb ships) | 22,292 | 2,889 | - | 3,584 | 25,876, and WON4 does not fit |
+| VGI (what edge-beeb shipped until 2026-09-06) | 22,292 | 2,889 | - | 3,584 | 25,876, and WON4 does not fit |
 | VGI3 (the same format, v3) | 16,079 | - | - | 2,816 | 18,895 for EDGEA alone |
 
 **AKM is 635 bytes smaller and loses anyway**, on the only thing that outranks
@@ -470,7 +470,8 @@ the 25 songs with the rendering discrepancy in `akm-open-questions.md` - so
 AKM's worst frame is dearer too: per 25 Hz game frame against edge-beeb's
 79,872-cycle budget, AKL/EDGEA is mean 4,989 max 6,509 (8.1%) where AKM/EDGEA
 is 5,093 and **6,996** (8.8%), and that build already misses nine flips against
-VGI's seven.
+VGI's seven. **That comparison is history now**: edge-beeb ships the AKL build
+and has retired VGI from its configuration set (its decision 73, ours row 11).
 
 Two constraints were checked because either could have decided it. **One
 `ENV_BASE` serves both tunes**: `survey_envelopes.py` says both are envelope

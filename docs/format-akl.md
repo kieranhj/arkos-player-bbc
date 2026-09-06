@@ -118,6 +118,66 @@ mismatches. Targhan's Orion Prime uses 8 and 10 and produced 362 of them
 while the constant was 12; EDGEA produces 209 while it is 8. With
 `envelope_base()` choosing, both are clean.
 
+## WON4 plays wrong notes, and it is ours
+
+Measured 2026-09-06. **Edge Grinder's end-game tune, `WON4.SKS`, disagrees with
+Arkos's own player on 216 audible channel-frames, and they are not the
+documented plus-or-minus one.**
+
+```
+python tools/verify/verify.py --player akl --song .../WON4.SKS --bass 2
+   the 6502 player against akl_reference.py: IDENTICAL on every frame
+   akl_reference.py: audible mismatches: {'ch1 period': 108, 'ch2 period': 108}
+
+python tools/verify/period_diffs.py .../WON4.SKS
+   |diff| = 180      108 frames
+   |diff| = 476      108 frames
+```
+
+Two things make this different from every other AKL result here.
+
+**It is a wrong note, not a rounding difference.** Arkos documents a ±1
+disagreement between its PC side and its Z80 player in the volume and pitch
+effects; that is what EDGEA's eleven channel-2 frames are, and they are
+correct. 180 and 476 period units are semitones, on about 3.3% of the tune's
+frames on each of two channels.
+
+**Both Arkos versions agree with each other and disagree with us.** AT2's
+`SongToYm.exe` and AT3's produce the *identical* histogram - 108 at 180 and
+108 at 476:
+
+```
+ARKOS3_HOME=/nonexistent python tools/verify/period_diffs.py .../WON4.SKS
+   (AT2's oracle) |diff| = 180  108 frames    |diff| = 476  108 frames
+```
+
+That is the opposite of EDGEA, where the two Arkos versions disagree with each
+other (11 mismatches against AT2, 431 against AT3) and the argument is about
+which oracle to believe. Here there is no such argument. The 6502 is identical
+to `akl_reference.py` on every frame, so the fault is in the reference's
+understanding of the format, or in the exporter - it is on our side of the
+line either way.
+
+**The lead is the instrument pitch table.** `export_akl.py --check` reports
+what a song uses, and the two Edge Grinder tunes differ in exactly one place:
+
+| feature | EDGEA | WON4 |
+|---|--:|--:|
+| `inst:pitch` | **none** | **1,275** |
+| `frame:pitch-up-down` | 117 | **108** |
+| `linker:speed` | 2 | none |
+
+WON4 is the first tune measured here that uses the instrument pitch table at
+all - one of the paths the Traps section below says has never been exercised -
+and its 108 `frame:pitch-up-down` frames are exactly the mismatch count on each
+channel. EDGEA has 117 of those frames and eleven mismatches, so the effect on
+its own is not the fault; something about its interaction with the pitch table
+is the place to start.
+
+Until it is explained, **AKL plays WON4 with an audible wrong pitch twice a
+second for 3% of its length**. It is 66 seconds that plays once at the end of
+the game, which is why nobody has heard it.
+
 ## Traps
 
 - **The song is exported at the address it will be played from.** AKL holds
@@ -126,7 +186,8 @@ while the constant was 12; EDGEA produces 209 while it is 8. With
   it was given.
 - **Paths nothing has ever called are not tested paths.** Pitch tables,
   soft-and-hard instruments and effects 1, 2, 5 and 6 have still not been
-  exercised by any verified tune. They are written and they look right; that
+  exercised by any verified tune - and the first tune to reach the pitch table,
+  WON4 above, plays wrong notes. They are written and they look right; that
   is not the same thing. `--check` reports what a song uses.
 - One real bug was found in this class during the extraction, in the Python
   reference: the arpeggio loop offset is sign-extended by the Z80's `sra` and

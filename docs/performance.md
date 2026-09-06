@@ -184,7 +184,7 @@ and `bass_stop` still run to the end of every frame, `sn_chan` still asks
 `cpx bass_skip` per channel, and the channel loop still tests `cpx bass_want`
 on every below-floor note.
 
-It is `PLAN.md` item 5, with the acceptance test. It needs a `docs/decisions.md`
+It is `PLAN.md` item 6, with the acceptance test. It needs a `docs/decisions.md`
 row first, because it adds a second host-facing constant beside `ENV_BASE` -
 and because `example/demo.asm`'s B key cannot work in a fixed build.
 
@@ -415,6 +415,48 @@ refuses it.
 against AKY's 20,724, and a third of VGI's. This is the shape the format was
 designed for: a long tune with a lot of pattern reuse, where a register log
 has to store every frame of output and a tracker replay does not.
+
+### The two Edge Grinder tunes
+
+Measured 2026-09-06, both tunes, `bass_mode 2`, the same harness. Edge Grinder
+has two songs, not one: `EDGEA.SKS` in game and `WON4.SKS` at the end, and the
+CPC original re-inits the replay with the second address. Any choice has to
+carry both.
+
+| | EDGEA | WON4 | data | + player | = RAM |
+|---|--:|--:|--:|--:|--:|
+| **AKL** | 4,741 | 695 | 5,436 | 3,685 | **9,121** |
+| AKM | 3,654 | 598 | 4,252 | 4,234 | **8,486** |
+| AKY | 13,932 | - | - | 2,750 | out on EDGEA alone |
+| VGI (what edge-beeb ships) | 22,292 | 2,889 | - | 3,584 | 25,876, and WON4 does not fit |
+
+**AKM is 635 bytes smaller and loses anyway**, on the only thing that outranks
+size here:
+
+| audible mismatches vs Arkos | EDGEA | WON4 |
+|---|--:|--:|
+| **AKL** | **11** (the documented ±1) | 216 |
+| AKM | **6,715** | 1,104 |
+
+EDGEA is on the *not clean* list in `tools/verify/akm_known_good.txt` - one of
+the 25 songs with the rendering discrepancy in `akm-open-questions.md` - so
+`lib/akmplayer.asm` is not verified on the one tune the port exists to play.
+AKM's worst frame is dearer too: per 25 Hz game frame against edge-beeb's
+79,872-cycle budget, AKL/EDGEA is mean 4,989 max 6,509 (8.1%) where AKM/EDGEA
+is 5,093 and **6,996** (8.8%), and that build already misses nine flips against
+VGI's seven.
+
+Two constraints were checked because either could have decided it. **One
+`ENV_BASE` serves both tunes**: `survey_envelopes.py` says both are envelope
+shape 12 throughout, so a single build plays both - had WON4 been shape 8 or
+10, nothing but AKG could have carried the pair. And **both survive the AKL
+exporter**: `export_akl.py --check` replays each over 6,000 frames and finds
+neither has the arpeggio fault.
+
+So **AKL for both**, which is what edge-beeb's `MUSIC_AKL` build already uses -
+but WON4's 216 are a real defect rather than the documented ±1, and
+`format-akl.md` has it. `PLAN.md` item 6 would also hand a byte-starved build
+606 bytes back, a third of AKM's whole size advantage.
 
 ### What the tables say
 

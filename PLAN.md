@@ -82,7 +82,37 @@ it — the same treatment edge-beeb's own `lib/vgiplayer.asm` already gets.
 repo's, its build still assembles, and `PROVENANCE.md` there says where it
 came from.
 
-## 5. Fix the bass at build time
+## 5. WON4 plays wrong notes
+
+**Found 2026-09-06, answering which format the two Edge Grinder tunes want.**
+Tom&Jerry's `WON4.SKS`, the end-game tune the CPC original re-inits the replay
+for, disagrees with Arkos's own player on **216 audible channel-frames** - 108
+off by 180 period units on channel 1 and 108 off by 476 on channel 2. That is a
+wrong note, not the documented plus-or-minus one, and AT2's oracle and AT3's
+produce the identical histogram, so it is ours rather than the oracle's. The
+6502 is identical to `akl_reference.py` on every frame, so the fault is in the
+reference or the exporter.
+
+```
+python tools/verify/verify.py --player akl --song .../WON4.SKS --bass 2
+python tools/verify/period_diffs.py .../WON4.SKS
+ARKOS3_HOME=/nonexistent python tools/verify/period_diffs.py .../WON4.SKS
+```
+
+The lead: WON4 is the first tune measured here that uses the **instrument pitch
+table** (`inst:pitch` x1,275, where EDGEA uses none), and its 108
+`frame:pitch-up-down` frames are exactly the mismatch count on each channel.
+Written up in [`docs/format-akl.md`](docs/format-akl.md), "WON4 plays wrong
+notes".
+
+This is the first fault found in the class `CLAUDE.md` warns about - a path
+nothing had ever called - and it says the warning was right.
+
+*Accepts when*: `period_diffs.py` reports no audible period difference above
+the documented ±1 on WON4 against both oracles, with the cause written down; or
+the difference is shown to be Arkos's and referred upstream with item 6.
+
+## 6. Fix the bass at build time
 
 Not started, and measured before being proposed: `tools/profile_player.py`,
 AKL on Acid Demo 21, 100 frames, py65 at 2 MHz, each build running the
@@ -126,7 +156,7 @@ reports the fixed build chip-state identical to the runtime one over the
 corpus; and the bytes and cycles above are re-measured and written into
 [`docs/performance.md`](docs/performance.md).
 
-## 6. Write to Targhan
+## 7. Write to Targhan
 
 Not done. There is more to say now than when it was first noted:
 

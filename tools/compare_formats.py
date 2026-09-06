@@ -118,8 +118,9 @@ def export_vgm(song, stem):
     vgi3 = os.path.join(BUILD, stem + '.v3.vgi')
     subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgmpacker.py'),
                     vgm, '-o', vgc], capture_output=True, text=True)
+    # --v2 is explicit: v3 is vgipacker's default now that the player reads it
     subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgipacker.py'),
-                    vgm, '-o', vgi], capture_output=True, text=True)
+                    vgm, '-o', vgi, '--v2'], capture_output=True, text=True)
     subprocess.run([sys.executable, os.path.join(VGM_PACKER, 'vgipacker.py'),
                     vgm, '-o', vgi3, '--v3'], capture_output=True, text=True)
     return vgm, (vgc if os.path.exists(vgc) else None), \

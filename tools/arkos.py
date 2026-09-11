@@ -177,8 +177,86 @@ def initial_transpositions(song, default=(0, 0, 0)):
             tr[i] = int(val)
     return tuple(tr)
 
+
+def mid_pattern_speeds(song, subsong=0):
+    """Speed changes that fall INSIDE a pattern: [(position, row, speed)].
+
+    AKL and AKM encode a speed only at the start of a pattern (AKM.md: "Only
+    speed change at the start of a pattern are encoded"; the AKL spec says
+    the same). Every other cell of the speed track is dropped on export, and
+    the pattern plays at its first speed throughout. h0ffman's "His Masters
+    Rasters" alternates 5/4 on every row; as AKM it played about 11% slow,
+    the 6502 byte-identical to akm_reference.py all the while, and only the
+    YM oracle - thousands of period mismatches - or the composer could tell.
+    AKY is a register stream and keeps the timing.
+
+    Reads both .aks XML layouts (each a zip). AT2's is namespaced and each
+    <pattern> of a subsong IS a position, with its own height and speed
+    track number. AT3's 3.0 has no namespace: <position> gives a height and a
+    patternIndex, the pattern names its speed track in <speedTrackIndex>, and
+    a song with no speed changes has no <speedTracks> at all. Returns None for
+    anything it cannot read (.sks, .128), since no answer is better than a
+    wrong one.
+    """
+    import xml.etree.ElementTree as ET
+    import zipfile
+    try:
+        with zipfile.ZipFile(song) as z:
+            root = ET.fromstring(z.read(z.namelist()[0]))
+    except (zipfile.BadZipFile, ET.ParseError, OSError, IndexError):
+        return None
+    num = lambda e, tag, d=0: int(e.findtext(tag, str(d)))
+    if root.tag == 'song':                                      # AT3, 3.0
+        subs = root.findall('subsongs/subsong')
+        if subsong >= len(subs):
+            return None
+        ss = subs[subsong]
+        tracks = {num(st, 'index'): [(num(c, 'index'), num(c, 'value'))
+                                     for c in st.findall('cell')]
+                  for st in ss.findall('speedTracks/speedTrack')}
+        pats = [num(p, 'speedTrackIndex/trackIndex')
+                for p in ss.findall('patterns/pattern')]
+        poss = ss.findall('positions/position')
+        end = num(ss, 'endPosition', len(poss) - 1)
+        rows = [(num(p, 'height', 64), pats[num(p, 'patternIndex')])
+                for p in poss[:end + 1]]
+    else:                                                       # AT2
+        a = '{http://www.julien-nevo.com/ArkosTrackerSong}'
+        subs = root.findall('%ssubsongs/%ssubsong' % (a, a))
+        if subsong >= len(subs):
+            return None
+        ss = subs[subsong]
+        tracks = {num(st, a + 'number'): [(num(c, a + 'index'), num(c, a + 'value'))
+                                          for c in st.findall(a + 'speedCell')]
+                  for st in ss.findall('%sspeedTracks/%sspeedTrack' % (a, a))}
+        pats = ss.findall('%spatterns/%spattern' % (a, a))
+        end = num(ss, a + 'endIndex', len(pats) - 1)
+        rows = [(num(p, a + 'height', 64), num(p, a + 'speedTrackNumber'))
+                for p in pats[:end + 1]]
+    found = []
+    for pos, (h, n) in enumerate(rows):
+        found += [(pos, row, v) for row, v in tracks.get(n, ()) if 0 < row < h]
+    return found
+
+
+def warn_mid_pattern_speeds(song, player):
+    """Say so if `player` is AKL or AKM and the song needs AKY's timing."""
+    if player not in ('akl', 'akm'):
+        return
+    found = mid_pattern_speeds(song)
+    if found:
+        pos, row, v = found[0]
+        sys.stderr.write(
+            'warning: %s changes speed inside a pattern %d times (first: '
+            'position %d, row %d, speed %d), which %s cannot encode - it will '
+            'play at the wrong tempo. Use --player aky.\n'
+            % (os.path.basename(song), len(found), pos, row, v, player.upper()))
+
+
 if __name__ == '__main__':
     for s in sys.argv[1:]:
-        print('%-46s %d Hz, ENV_BASE %d, transpositions %s'
+        mps = mid_pattern_speeds(s)
+        print('%-46s %d Hz, ENV_BASE %d, transpositions %s, mid-pattern speeds %s'
               % (os.path.basename(s), replay_rate(s), envelope_base(s),
-                 list(initial_transpositions(s))))
+                 list(initial_transpositions(s)),
+                 '?' if mps is None else len(mps)))

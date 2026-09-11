@@ -94,6 +94,9 @@ def aky_psgs(path):
 
 def build(player, song, title, disc=None):
     os.makedirs(BUILD, exist_ok=True)
+    # AKL and AKM keep only a pattern's first speed; a song that changes speed
+    # mid-pattern plays at the wrong tempo with nothing else to show for it.
+    arkos.warn_mid_pattern_speeds(song, player)
     binary = os.path.join(BUILD, 'song.bin')
     export(song, player, binary)
     if player == 'aky':

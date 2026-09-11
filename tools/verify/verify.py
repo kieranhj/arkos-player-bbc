@@ -216,6 +216,11 @@ def main():
     if not os.path.exists(args.song):
         raise SystemExit('song not found: %s' % args.song)
 
+    # The frame-for-frame check cannot see a tempo the FORMAT lost: AKL and
+    # AKM keep only a pattern's first speed, and both sides replay the same
+    # wrong export. See arkos.mid_pattern_speeds.
+    arkos.warn_mid_pattern_speeds(args.song, args.player)
+
     # AKL's envelope pair belongs to the song; the reference must use the
     # same value as the player or the comparison is meaningless.
     env_base = (arkos.envelope_base(args.song)

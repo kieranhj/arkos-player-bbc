@@ -185,6 +185,15 @@ are overwhelmingly native `.aks` songs rather than `.sks` ones:
 StarKos is the older and poorer format and cannot express what a native Arkos
 song can, so `.sks` tunes largely pass by never reaching whatever is wrong.
 
+**One part of it is a speed track the format drops** (see Traps). Measured
+2026-09-11 with `arkos.mid_pattern_speeds()`: every clean `.aks` has no speed
+change inside a pattern, and 6 of the 15 `.aks` that differ do — *Playing with
+effects* 2, *Crtc - End part* 2, *Crtc* 10, *Hocus Pocus* 3, *GinFizz* 2,205,
+*Aganamemnon* 5. On those, a difference from the first dropped change onward
+is the format, not the player. The other 9 differ with no mid-pattern speed
+change at all, and the `.sks` cases (KellyOn below) cannot be checked this way,
+so this is a lead, not the explanation.
+
 **The cause is not the decode.** The annotation check above proves the note,
 instrument, wait, effects, instrument volumes and linker are all read exactly
 as Arkos says they should be, on every one of these songs. The difference is
@@ -331,6 +340,19 @@ their absence is not a gap.
   neither, and which is not one shifted pair either, cannot be represented at
   all: `arkos.py` warns, and `env shape` mismatches on those tunes are
   expected.
+- **AKM keeps only a pattern's first speed.** `reference/AKM.md`: "Only speed
+  change at the start of a pattern are encoded" (AKL's spec says the same).
+  Every other cell of the speed track is dropped on export, and nothing warned:
+  h0ffman's *His Masters Rasters* alternates 5/4 on every row and as AKM
+  played about 11% slow, the 6502 byte-identical to `akm_reference.py`
+  throughout — the frame-for-frame check replays the same lossy export on both
+  sides. The composer heard it; the YM oracle showed it as thousands of period
+  mismatches. As AKY it is 8 audible mismatches over 6,336 frames.
+  `arkos.mid_pattern_speeds()` finds these in an AT3 `.aks`, and `build.py`
+  and `verify.py` now warn when AKL or AKM is chosen for one. Measured
+  2026-09-11: four of five h0ffman songs tried (not in the repo) do this,
+  and so does `Targhan - Crtc.aks`, the AKM demo tune (10 changes, from
+  position 32). It cannot read `.sks`.
 - **A path nothing has ever called is not a tested path.** Five of AKL's
   seven effects have still never executed. `tools/survey_akm.py` exists so
   that this port can say plainly which AKM paths its testing reached.

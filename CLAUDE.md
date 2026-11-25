@@ -115,7 +115,7 @@ python tools/sn2wav.py build/x.snf -o build/x.wav
 `bin/beebasm.exe` wins if present (`bin/` is gitignored too).
 
 Arkos installs are found through `ARKOS3_HOME` / `ARKOS2_HOME`, defaulting to
-`~/OneDrive/Trackers/ArkosTracker3` and `~/OneDrive/Trackers/Arkos Tracker 2`.
+`~/OneDrive/Retro/Trackers/ArkosTracker3` and `~/OneDrive/Trackers/Arkos Tracker 2`.
 **`tools/export_akl.py` needs an AT2 install permanently**: AT3 has withdrawn Lightweight — no
 player, no documentation, no `SongToLightweight.exe` — which is why `reference/` keeps AT2's
 sources and spec, nowhere else having them.

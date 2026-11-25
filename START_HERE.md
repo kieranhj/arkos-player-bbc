@@ -20,7 +20,7 @@ Arkos Tracker music on the BBC Micro: AKL, AKM and AKY 6502 replays plus the AY-
 ## Build and run
 - `make`: `py -3 example\build.py` -> `build\ARKOS-AKL.SSD`, `-AKY.SSD`, `-AKM.SSD` (Makefile added 2026-11-22). Works.
 - `make extra` (ARKOS-EDGEA / ARKOS-ORION discs), `make verify` (verify.py --player akl, make_tables.py --check), `make help`.
-- Tools: beebasm (`bin\beebasm.exe` if present, else `..\..\Bin\beebasm.exe`), Python 3 with py65 and numpy, Arkos Tracker 3 at `ARKOS3_HOME` (default `%USERPROFILE%\OneDrive\Trackers\ArkosTracker3`, which stays in OneDrive) for song export and the oracle.
+- Tools: beebasm (`bin\beebasm.exe` if present, else `..\..\Bin\beebasm.exe`), Python 3 with py65 and numpy, Arkos Tracker 3 at `ARKOS3_HOME` (default `%USERPROFILE%\OneDrive\Retro\Trackers\ArkosTracker3`, which stays in OneDrive) for song export and the oracle.
 - Run the `.SSD` in any BBC emulator (no run script here).
 
 ## Local changes

@@ -54,9 +54,9 @@ import sn2wav                                                   # noqa: E402
 BEEB = os.path.dirname(os.path.dirname(ROOT))
 HOME = os.path.expanduser('~')
 AT3 = os.environ.get('ARKOS3_HOME',
-                     os.path.join(HOME, 'OneDrive', 'Retro', 'Trackers', 'ArkosTracker3'))
+                     r'D:\tools\trackers\ArkosTracker3')
 AT2 = os.environ.get('ARKOS2_HOME',
-                     os.path.join(HOME, 'OneDrive', 'Retro', 'Trackers', 'Arkos Tracker 2'))
+                     r'D:\tools\trackers\Arkos Tracker 2')
 
 DEFAULT_SONG = os.path.join(ROOT, 'songs', 'Acid_demo_21.aks')
 

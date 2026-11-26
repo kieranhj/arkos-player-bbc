@@ -27,7 +27,7 @@ SONG_ADDR = 0x3000
 
 HOME = os.path.expanduser('~')
 AT3 = os.environ.get('ARKOS3_HOME',
-                     os.path.join(HOME, 'OneDrive', 'Retro', 'Trackers', 'ArkosTracker3'))
+                     r'D:\tools\trackers\ArkosTracker3')
 BEEB = os.path.dirname(os.path.dirname(ROOT))
 
 # The defaults. AKL gets a Targhan song because Arkos Tracker 2's AKL

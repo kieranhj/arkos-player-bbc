@@ -1,7 +1,7 @@
 # Wrapper so that `make` works from PowerShell / Windows Terminal.
 # GNU make runs recipes with cmd.exe here (no sh on PATH).
 # Needs beebasm (..\..\Bin, or bin\ if present), Python 3 with py65 and numpy,
-# and Arkos Tracker 3 (ARKOS3_HOME, default ~\OneDrive\Retro\Trackers\ArkosTracker3).
+# and Arkos Tracker 3 (ARKOS3_HOME, default D:\tools\trackers\ArkosTracker3).
 .PHONY: all build extra verify help
 all: build
 

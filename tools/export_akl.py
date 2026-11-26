@@ -47,8 +47,7 @@ ROOT = os.path.dirname(HERE)
 # --exporter or the ARKOS2_HOME environment variable.
 AT2 = os.environ.get(
     'ARKOS2_HOME',
-    os.path.join(os.path.expanduser('~'), 'OneDrive', 'Trackers',
-                 'Arkos Tracker 2'))
+    r'D:\tools\trackers\Arkos Tracker 2')
 EXPORTER = os.path.join(AT2, 'tools', 'SongToLightweight.exe')
 
 
